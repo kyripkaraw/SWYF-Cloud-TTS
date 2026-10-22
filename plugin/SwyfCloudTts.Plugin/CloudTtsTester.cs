@@ -17,11 +17,9 @@ namespace SwyfCloudTts.Plugin
         public int ExitCode = -1;
     }
 
-    /// <summary>
     /// Runs the worker in one of its one-shot modes (--test, --list-voices) with the values of the
     /// form. The API key goes into a temporary config file, never onto the command line, and the
     /// file is deleted afterwards.
-    /// </summary>
     internal static class CloudTtsTester
     {
         private const int TimeoutMs = 120000;
@@ -46,7 +44,7 @@ namespace SwyfCloudTts.Plugin
             }), token);
         }
 
-        /// <summary>Asks the worker to save the account's own voices to elevenlabs-voices.json.</summary>
+        /// Asks the worker to save the account's own voices to elevenlabs-voices.json.
         public static Task<CloudTtsTestResult> ListVoicesAsync(string configJson, string workerPath, CancellationToken token)
         {
             return Task.Run(() => Run(configJson, workerPath, token, (directory, args) =>
@@ -230,10 +228,8 @@ namespace SwyfCloudTts.Plugin
             return "";
         }
 
-        /// <summary>
         /// Windows argument quoting: backslashes are literal except right before a quote, so
         /// only a trailing run is doubled to keep it from escaping the closing quote.
-        /// </summary>
         private static string Quote(string value)
         {
             string text = (value ?? "").Replace("\"", "'");

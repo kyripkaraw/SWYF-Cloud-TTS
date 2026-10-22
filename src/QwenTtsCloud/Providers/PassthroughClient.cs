@@ -2,12 +2,10 @@ using System.Diagnostics;
 
 namespace SwyfCloudTts.Providers;
 
-/// <summary>
 /// Optional safety net: forwards a request to the untouched original worker
 /// (renamed to QwenTtsWorker.orig.exe by the installer).
 /// It is started lazily and only when the cloud provider fails, because loading the
 /// 946 MB GGUF model takes a long time.
-/// </summary>
 internal sealed class PassthroughClient : IDisposable
 {
     private readonly string _executable;
@@ -34,10 +32,8 @@ internal sealed class PassthroughClient : IDisposable
         _backend = backend;
     }
 
-    /// <summary>
     /// Returns true when the whole reply (chunks plus terminator) was already written
     /// to the game. Returns false when nothing usable was produced.
-    /// </summary>
     public bool TrySynthesize(string text, string language, float[] reference, BinaryWriter writer)
     {
         try

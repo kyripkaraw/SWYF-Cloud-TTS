@@ -8,16 +8,14 @@ using static SwyfCloudTts.Plugin.CloudTtsTheme;
 
 namespace SwyfCloudTts.Plugin
 {
-    /// <summary>
     /// CHARACTERS block of the card: one row per speaker from voices.json with the game's own
     /// clip, an editable name and the voice for the selected service. Edits are saved at once.
-    /// </summary>
     internal sealed class CloudTtsCharacters : IDisposable
     {
         private const long WatchIntervalMs = 2000;
         private const long SaveDelayMs = 700;
 
-        /// <summary>A rebuild would drop the field being typed in, so wait until edits settle.</summary>
+        /// A rebuild would drop the field being typed in, so wait until edits settle.
         private const float EditQuietSeconds = 5f;
 
         private readonly VisualElement _root;
@@ -253,7 +251,7 @@ namespace SwyfCloudTts.Plugin
             return dropdown;
         }
 
-        /// <summary>Keep protects the character's clone from rotation (for example the boss's).</summary>
+        /// Keep protects the character's clone from rotation (for example the boss's).
         private DropdownField BuildKeepDropdown(CloudTtsSpeaker speaker)
         {
             var dropdown = new DropdownField();

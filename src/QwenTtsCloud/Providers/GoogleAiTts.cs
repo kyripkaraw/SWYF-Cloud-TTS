@@ -5,17 +5,15 @@ using System.Text.Json;
 
 namespace SwyfCloudTts.Providers;
 
-/// <summary>
 /// Google AI Studio (Gemini TTS), not Google Cloud Text-to-Speech.
 /// The model speaks the text verbatim, so delivery hints go into speech_metadata,
 /// never into the transcript. Output is requested as 24 kHz s16le, which is exactly
 /// the format the game consumes - no resampling anywhere.
-/// </summary>
 internal sealed class GoogleAiTts : HttpTtsProvider
 {
     private const int SampleRate = 24000;
 
-    /// <summary>Longer lines are split at sentence boundaries to keep each request small.</summary>
+    /// Longer lines are split at sentence boundaries to keep each request small.
     private const int ChunkLimit = 600;
 
     private readonly Config.GoogleAiConfig _config;
@@ -118,7 +116,7 @@ internal sealed class GoogleAiTts : HttpTtsProvider
         EmitPcm(audio, onSamples);
     }
 
-    /// <summary>Accepts both the Interactions and the generateContent response shapes.</summary>
+    /// Accepts both the Interactions and the generateContent response shapes.
     private static byte[] ExtractAudio(JsonElement root)
     {
         if (root.TryGetProperty("steps", out JsonElement steps) && steps.ValueKind == JsonValueKind.Array)
@@ -207,7 +205,7 @@ internal sealed class GoogleAiTts : HttpTtsProvider
         }
     }
 
-    /// <summary>Slices the data chunk out of a RIFF/WAVE payload; returns input unchanged for raw PCM.</summary>
+    /// Slices the data chunk out of a RIFF/WAVE payload; returns input unchanged for raw PCM.
     internal static byte[] StripWavHeader(byte[] audio)
     {
         if (audio.Length < 12 ||

@@ -1,9 +1,7 @@
 namespace SwyfCloudTts.Providers;
 
-/// <summary>
 /// OpenAI speech endpoint. <c>response_format: pcm</c> returns exactly what the game wants:
 /// 24 kHz, 16-bit, mono, little endian. No resampling anywhere in the pipeline.
-/// </summary>
 internal sealed class OpenAiTts : HttpTtsProvider
 {
     private readonly Config.OpenAiConfig _config;

@@ -7,16 +7,14 @@ using Newtonsoft.Json.Linq;
 
 namespace SwyfCloudTts.Plugin
 {
-    /// <summary>
     /// What the worker last learned about the ElevenLabs account: clones and limits from
     /// elevenlabs-clones.json, the player's own voices from elevenlabs-voices.json. The card
     /// never calls ElevenLabs itself.
-    /// </summary>
     internal sealed class CloudTtsElevenLabsState
     {
         public readonly HashSet<string> Clones = new HashSet<string>();
 
-        /// <summary>The player's own voices (designed, cloned by hand, saved from the library): id and name.</summary>
+        /// The player's own voices (designed, cloned by hand, saved from the library): id and name.
         public readonly List<KeyValuePair<string, string>> MyVoices = new List<KeyValuePair<string, string>>();
 
         public bool HasAccount;
@@ -102,7 +100,7 @@ namespace SwyfCloudTts.Plugin
             return null;
         }
 
-        /// <summary>One line for the card, or empty before the worker has looked at the account.</summary>
+        /// One line for the card, or empty before the worker has looked at the account.
         public string Describe()
         {
             string text = "";
@@ -136,7 +134,7 @@ namespace SwyfCloudTts.Plugin
             }
         }
 
-        /// <summary>"2026-10-22T13:51:58.123Z" becomes "2026-10-22 13:51 UTC".</summary>
+        /// "2026-10-22T13:51:58.123Z" becomes "2026-10-22 13:51 UTC".
         private static string Short(string iso)
             => iso.Length >= 16 ? iso.Substring(0, 10) + " " + iso.Substring(11, 5) + " UTC" : iso;
     }

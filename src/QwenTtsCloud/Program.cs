@@ -2,10 +2,8 @@ using System.Text;
 
 namespace SwyfCloudTts;
 
-/// <summary>
 /// Drop-in replacement for the game's QwenTtsWorker.exe. Speaks the same binary protocol on
 /// stdin/stdout, but synthesizes speech through a cloud provider instead of the local model.
-/// </summary>
 internal static class Program
 {
     private static int Main(string[] args)
@@ -109,7 +107,7 @@ internal static class Program
         return 0;
     }
 
-    /// <summary>Saves the ElevenLabs account's own voices for the settings card.</summary>
+    /// Saves the ElevenLabs account's own voices for the settings card.
     private static int ListVoices(string[] args)
     {
         Config config = Config.Load(Cli.Value(args, "--config"));

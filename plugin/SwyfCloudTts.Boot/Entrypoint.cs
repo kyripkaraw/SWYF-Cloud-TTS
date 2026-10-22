@@ -6,13 +6,11 @@ using UnityEngine.SceneManagement;
 
 namespace Doorstop
 {
-    /// <summary>
     /// Unity Doorstop entrypoint. Doorstop loads this assembly before the game starts and
     /// invokes <see cref="Start"/>. BepInEx is deliberately not used: its preloader needs BCL
     /// APIs the game has stripped (System.IO.File.ReadAllLines and friends), it boots by
     /// IL-patching Application..cctor, and Harmony cannot work either because
     /// MethodBase.GetMethodBody is missing.
-    /// </summary>
     public static class Entrypoint
     {
         private const string PluginFileName = "SwyfCloudTts.Plugin.dll";
@@ -46,10 +44,8 @@ namespace Doorstop
             }
         }
 
-        /// <summary>
         /// Unity scans loaded assemblies for this attribute, which covers the case where the
         /// assembly is present before the first scene is created.
-        /// </summary>
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void OnRuntimeInitialized()
         {

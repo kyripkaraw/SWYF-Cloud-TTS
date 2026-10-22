@@ -1,9 +1,9 @@
 namespace SwyfCloudTts;
 
-/// <summary>Tiny argument helper shared by the CLI modes. Accepts "--name value" and "--name=value".</summary>
+/// Tiny argument helper shared by the CLI modes. Accepts "--name value" and "--name=value".
 internal static class Cli
 {
-    /// <summary>UTF-8 only for the console tools; the worker's stdout must stay binary.</summary>
+    /// UTF-8 only for the console tools; the worker's stdout must stay binary.
     public static void EnableUtf8Console()
     {
         try

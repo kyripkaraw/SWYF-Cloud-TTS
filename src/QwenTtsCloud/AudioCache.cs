@@ -3,11 +3,9 @@ using System.Text;
 
 namespace SwyfCloudTts;
 
-/// <summary>
 /// Disk cache of synthesized lines. The game splits speech into ~240 byte chunks, so
 /// recurring barks, greetings and combat lines are requested over and over again.
 /// Caching them makes the cloud almost free and removes most of the latency.
-/// </summary>
 internal sealed class AudioCache
 {
     private readonly object _gate = new();

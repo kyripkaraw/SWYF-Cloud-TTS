@@ -5,13 +5,11 @@ using UnityEngine.UIElements;
 
 namespace SwyfCloudTts.Plugin
 {
-    /// <summary>
     /// Reads and changes game state through reflection, so a renamed member in a game update
     /// only switches the matching feature off instead of keeping the plugin from loading.
-    /// </summary>
     internal static class CloudTtsGame
     {
-        /// <summary>Order of Kolkata.Speech.QwenTtsPreference.</summary>
+        /// Order of Kolkata.Speech.QwenTtsPreference.
         public const int PreferNonEnglish = 0;
         public const int AlwaysPrefer = 1;
         public const int Never = 2;
@@ -32,7 +30,7 @@ namespace SwyfCloudTts.Plugin
         private static PropertyInfo _currentCallLanguage;
         private static FieldInfo _englishName;
 
-        /// <summary>Two-letter code of the game's interface language, "en" when unknown.</summary>
+        /// Two-letter code of the game's interface language, "en" when unknown.
         public static string LanguageCode
         {
             get
@@ -42,7 +40,7 @@ namespace SwyfCloudTts.Plugin
             }
         }
 
-        /// <summary>English name of the call language ("Russian"), which is what the worker is sent.</summary>
+        /// English name of the call language ("Russian"), which is what the worker is sent.
         public static string CallLanguageName
         {
             get
@@ -54,7 +52,7 @@ namespace SwyfCloudTts.Plugin
             }
         }
 
-        /// <summary>The font the game uses for a language, or null where it keeps its default font.</summary>
+        /// The font the game uses for a language, or null where it keeps its default font.
         public static Font UiFont(string code)
         {
             Resolve();
@@ -69,7 +67,7 @@ namespace SwyfCloudTts.Plugin
             }
         }
 
-        /// <summary>Applies the game's own casing rules for setting labels, section labels and buttons.</summary>
+        /// Applies the game's own casing rules for setting labels, section labels and buttons.
         public static string FormatSettingsText(TextElement element, string text)
         {
             Resolve();
@@ -89,7 +87,7 @@ namespace SwyfCloudTts.Plugin
             }
         }
 
-        /// <summary>The game's "use Qwen for" preference, or -1 when it cannot be read.</summary>
+        /// The game's "use Qwen for" preference, or -1 when it cannot be read.
         public static int QwenPreference
         {
             get
@@ -126,7 +124,7 @@ namespace SwyfCloudTts.Plugin
             }
         }
 
-        /// <summary>False on Windows on ARM, where the game never starts the worker. True when unknown.</summary>
+        /// False where the game never starts the worker (Windows on ARM, or a hardware check the mod could not redirect). True when unknown.
         public static bool HardwareSupported
         {
             get
@@ -137,7 +135,7 @@ namespace SwyfCloudTts.Plugin
             }
         }
 
-        /// <summary>Kolkata.Speech.QwenDownloadState name: Inactive, Checking, Downloading, Ready, Failed, Unavailable.</summary>
+        /// Kolkata.Speech.QwenDownloadState name: Inactive, Checking, Downloading, Ready, Failed, Unavailable.
         public static string DownloadState
         {
             get
@@ -148,7 +146,7 @@ namespace SwyfCloudTts.Plugin
             }
         }
 
-        /// <summary>Kolkata.Speech.QwenVoiceState name: Unloaded, Loading, Ready, Failed.</summary>
+        /// Kolkata.Speech.QwenVoiceState name: Unloaded, Loading, Ready, Failed.
         public static string VoiceState
         {
             get

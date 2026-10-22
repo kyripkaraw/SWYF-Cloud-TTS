@@ -26,11 +26,9 @@ namespace SwyfCloudTts.Plugin
         }
     }
 
-    /// <summary>
     /// Reads and edits voices.json, the speaker book the worker fills in as characters speak.
     /// Edits go through a JObject so fields the worker adds survive the round trip; the worker
     /// re-reads the file when it changes, so a new choice applies from the next line.
-    /// </summary>
     internal static class CloudTtsVoices
     {
         public static string BookPath => Path.Combine(CloudTtsPaths.StateDirectory, "voices.json");
@@ -38,7 +36,7 @@ namespace SwyfCloudTts.Plugin
         public static string ReferencePath(string id)
             => Path.Combine(Path.Combine(CloudTtsPaths.StateDirectory, "voices"), id + ".wav");
 
-        /// <summary>Raw file text, used to notice changes without relying on file timestamps.</summary>
+        /// Raw file text, used to notice changes without relying on file timestamps.
         public static string ReadText()
         {
             try
@@ -138,7 +136,7 @@ namespace SwyfCloudTts.Plugin
             });
         }
 
-        /// <summary>A kept character's ElevenLabs clone is never deleted to free a voice slot.</summary>
+        /// A kept character's ElevenLabs clone is never deleted to free a voice slot.
         public static void SetKeepClone(string id, bool keep)
         {
             Update(root =>
@@ -228,7 +226,7 @@ namespace SwyfCloudTts.Plugin
             }
         }
 
-        /// <summary>Dates stay strings so the worker reads back exactly what it wrote.</summary>
+        /// Dates stay strings so the worker reads back exactly what it wrote.
         private static JObject LoadBook(string text)
         {
             using (var reader = new JsonTextReader(new StringReader(text)) { DateParseHandling = DateParseHandling.None })
@@ -239,7 +237,7 @@ namespace SwyfCloudTts.Plugin
 
         private static JObject EmptyBook() => new JObject { ["speakers"] = new JObject() };
 
-        /// <summary>Keeps the list in the order characters were first heard (ISO dates sort as text).</summary>
+        /// Keeps the list in the order characters were first heard (ISO dates sort as text).
         private static void Insert(List<CloudTtsSpeaker> list, CloudTtsSpeaker speaker)
         {
             int index = list.Count;

@@ -6,7 +6,7 @@ using Microsoft.Win32;
 
 namespace SwyfCloudTts.Setup
 {
-    /// <summary>Finds the game through a previous install or the Steam library list.</summary>
+    /// Finds the game through a previous install or the Steam library list.
     internal static class GameLocator
     {
         private const string SteamFolderName = "Scam With Your Friends";
@@ -15,7 +15,7 @@ namespace SwyfCloudTts.Setup
             => !string.IsNullOrWhiteSpace(directory) &&
                Directory.Exists(Path.Combine(directory, Installer.RuntimeRelative));
 
-        /// <summary>Accepts the game folder or any folder inside it, as people often pick a subfolder.</summary>
+        /// Accepts the game folder or any folder inside it, as people often pick a subfolder.
         public static string Normalize(string path)
         {
             string current = path;

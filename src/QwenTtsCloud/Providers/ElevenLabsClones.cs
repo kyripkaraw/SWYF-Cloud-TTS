@@ -5,18 +5,16 @@ using System.Text.Json.Serialization;
 
 namespace SwyfCloudTts.Providers;
 
-/// <summary>
 /// Keeps an instant clone of every character's game voice within the account limits. Starter has
 /// 10 voice slots and a monthly budget of voice additions, while the game has dozens of characters:
 /// when the slots are full, the clone heard least recently is deleted to make room. Clones made
 /// earlier are reused rather than created twice. Only voices named "swyf-..." are ever deleted.
 /// The game restarts the worker for every line, so all of this state lives in a file.
-/// </summary>
 internal sealed class ElevenLabsClones
 {
     public const string NamePrefix = "swyf-";
 
-    /// <summary>The game never sends less; shorter clips would not clone well anyway.</summary>
+    /// The game never sends less; shorter clips would not clone well anyway.
     public const int MinReferenceSamples = 2400;
 
     private const string Provider = "elevenlabs";
@@ -42,7 +40,7 @@ internal sealed class ElevenLabsClones
 
     public bool IsOwnClone(string voiceId) => _state.Clones.ContainsKey(voiceId);
 
-    /// <summary>False while the account or this character is in a cool-down after a failure.</summary>
+    /// False while the account or this character is in a cool-down after a failure.
     public bool CanTry(string speakerId)
     {
         DateTime now = DateTime.UtcNow;
@@ -59,7 +57,7 @@ internal sealed class ElevenLabsClones
         }
     }
 
-    /// <summary>Drops a clone that no longer exists in the account.</summary>
+    /// Drops a clone that no longer exists in the account.
     public void Forget(string voiceId, VoiceEntry? speaker = null)
     {
         _voices.UnmapVoice(Provider, voiceId);
@@ -72,7 +70,7 @@ internal sealed class ElevenLabsClones
         Save();
     }
 
-    /// <summary>Returns the clone for this character, creating one if the account allows, or null.</summary>
+    /// Returns the clone for this character, creating one if the account allows, or null.
     public async Task<string?> AcquireAsync(VoiceEntry speaker, float[] reference, CancellationToken token)
     {
         if (!CanTry(speaker.Id))
@@ -146,10 +144,8 @@ internal sealed class ElevenLabsClones
         }
     }
 
-    /// <summary>
     /// Deletes mod clones that no character uses first (duplicates left by a cancelled line), then
     /// the ones heard least recently. Characters marked Keep are never touched.
-    /// </summary>
     private async Task<bool> FreeSlotsAsync(List<RemoteVoice> clones, int needed, CancellationToken token)
     {
         HashSet<string> mapped = _voices.MappedVoiceIds(Provider);
@@ -193,7 +189,7 @@ internal sealed class ElevenLabsClones
 
     private void Block(TimeSpan duration, string code, string reason) => Block(DateTime.UtcNow + duration, code, reason);
 
-    /// <summary>The code lets the settings card explain the pause in the player's language.</summary>
+    /// The code lets the settings card explain the pause in the player's language.
     private void Block(DateTime until, string code, string reason)
     {
         _state.BlockedUntil = until;
@@ -260,10 +256,8 @@ internal sealed class ElevenLabsClones
         return result;
     }
 
-    /// <summary>
     /// Saves the player's own voices (designed, cloned by hand, saved from the library) to
     /// elevenlabs-voices.json so the settings card can offer them by name. Mod clones are left out.
-    /// </summary>
     public async Task<int> SaveAccountVoicesAsync(CancellationToken token)
     {
         var voices = new List<AccountVoice>();

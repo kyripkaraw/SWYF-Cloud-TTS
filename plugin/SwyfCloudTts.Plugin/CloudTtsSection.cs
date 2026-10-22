@@ -12,14 +12,12 @@ using static SwyfCloudTts.Plugin.CloudTtsTheme;
 
 namespace SwyfCloudTts.Plugin
 {
-    /// <summary>
     /// The CLOUD TTS card in Settings > Speech, built from the game's own setting rows. Provider
     /// settings go to the worker's config file on Apply; character voices and the panel language
     /// are saved right away.
-    /// </summary>
     internal sealed class CloudTtsSection : IDisposable
     {
-        /// <summary>Dropdown entry that reveals a text field for a value that is not in the list.</summary>
+        /// Dropdown entry that reveals a text field for a value that is not in the list.
         private const string Custom = "\u0001custom";
 
         private static readonly string[] GoogleModels =
@@ -194,7 +192,7 @@ namespace SwyfCloudTts.Plugin
             }
         }
 
-        /// <summary>True while the card is still part of a live UI panel.</summary>
+        /// True while the card is still part of a live UI panel.
         public bool IsAttached => !_disposed && _host != null && _host.panel != null;
 
         public void Dispose()
@@ -258,10 +256,8 @@ namespace SwyfCloudTts.Plugin
             });
         }
 
-        /// <summary>
         /// The game decides which calls reach the worker at all ("Qwen" for non-English calls by
         /// default). This row edits that same setting, and the game's own row is hidden meanwhile.
-        /// </summary>
         private void BuildCallsRow()
         {
             VisualElement control = Row(_card, T("calls"));
@@ -398,7 +394,7 @@ namespace SwyfCloudTts.Plugin
             Help(_qwenParams, T("qwen.url.help"));
 
             _qwenMode = Dropdown(Row(_qwenParams, T("qwen.mode")), new List<string>(QwenModes),
-                mode => T("qwen.mode." + mode), 320);
+                mode => string.IsNullOrEmpty(mode) ? "" : T("qwen.mode." + mode), 320);
             Help(_qwenParams, T("qwen.mode.help"));
 
             _qwenLanguage = Dropdown(Row(_qwenParams, T("qwen.language")), new List<string>(QwenLanguages),
@@ -581,7 +577,7 @@ namespace SwyfCloudTts.Plugin
             return choices;
         }
 
-        /// <summary>A known value selects its entry; anything else selects "Other" and fills the text field.</summary>
+        /// A known value selects its entry; anything else selects "Other" and fills the text field.
         private void SetPreset(DropdownField preset, TextField custom, List<string> choices, string value)
         {
             value = (value ?? "").Trim();
@@ -695,7 +691,7 @@ namespace SwyfCloudTts.Plugin
             _clearKey.SetEnabled(canClear);
         }
 
-        /// <summary>The game's own state: whether it will call the worker at all.</summary>
+        /// The game's own state: whether it will call the worker at all.
         private void RefreshGame()
         {
             if (_disposed)
@@ -924,7 +920,7 @@ namespace SwyfCloudTts.Plugin
             }
         }
 
-        /// <summary>Form values for a one-shot worker run, or null after showing why there is none.</summary>
+        /// Form values for a one-shot worker run, or null after showing why there is none.
         private string RunConfig(string provider, Label status)
         {
             JObject root = _doc.CloneRoot();
@@ -1030,10 +1026,8 @@ namespace SwyfCloudTts.Plugin
             });
         }
 
-        /// <summary>
         /// The game's stripped mscorlib has no Task&lt;T&gt;.ContinueWith(Action&lt;Task&lt;T&gt;&gt;),
         /// so the UI scheduler polls the task instead.
-        /// </summary>
         private void StartRun(Func<CancellationToken, Task<CloudTtsTestResult>> start, Action<CloudTtsTestResult> done)
         {
             try
@@ -1154,7 +1148,7 @@ namespace SwyfCloudTts.Plugin
             return group;
         }
 
-        /// <summary>A row in the game's layout: label on the left, controls on the right.</summary>
+        /// A row in the game's layout: label on the left, controls on the right.
         private static VisualElement Row(VisualElement parent, string labelText)
         {
             var row = new VisualElement();
@@ -1286,7 +1280,7 @@ namespace SwyfCloudTts.Plugin
             return label;
         }
 
-        /// <summary>Change events need a panel, so values set while the card is detached update their labels here.</summary>
+        /// Change events need a panel, so values set while the card is detached update their labels here.
         private static void SetSlider(Slider slider, Label label, float value)
         {
             slider.SetValueWithoutNotify(value);

@@ -5,7 +5,7 @@ using System.Text.Json;
 
 namespace SwyfCloudTts.Providers;
 
-/// <summary>Shared plumbing: JSON posts, streaming PCM reads, retry and timeout policy.</summary>
+/// Shared plumbing: JSON posts, streaming PCM reads, retry and timeout policy.
 internal abstract class HttpTtsProvider : ITtsProvider
 {
     private static readonly HttpClient Http = new()
@@ -35,11 +35,9 @@ internal abstract class HttpTtsProvider : ITtsProvider
 
     public abstract Task SpeakAsync(SpeechRequest request, Action<float[]> onSamples, CancellationToken token);
 
-    /// <summary>
     /// Executes a request with retries. The timeout counts from the last audio received, so a long
     /// line can keep streaming. Only attempts that produced no audio are retried, so the game never
     /// hears a phrase twice.
-    /// </summary>
     protected async Task RunAsync(Action<float[]> onSamples, Func<Action<float[]>, CancellationToken, Task> attempt,
                                   CancellationToken token)
     {
@@ -96,7 +94,7 @@ internal abstract class HttpTtsProvider : ITtsProvider
         _ => false,
     };
 
-    /// <summary>Streams a raw 16-bit mono PCM response body, 24 kHz by contract of both APIs.</summary>
+    /// Streams a raw 16-bit mono PCM response body, 24 kHz by contract of both APIs.
     protected static async Task StreamPcmAsync(HttpResponseMessage response, Action<float[]> onSamples, CancellationToken token)
     {
         await using Stream stream = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
@@ -125,7 +123,7 @@ internal abstract class HttpTtsProvider : ITtsProvider
         }
     }
 
-    /// <summary>Forces a useful error message instead of "response status code does not indicate success".</summary>
+    /// Forces a useful error message instead of "response status code does not indicate success".
     protected async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
     {
         HttpResponseMessage response = await Http
@@ -156,7 +154,7 @@ internal abstract class HttpTtsProvider : ITtsProvider
             $"{Name} HTTP {(int)code} {code}: {body}{Hint(code)}", null, code);
     }
 
-    /// <summary>Plain-language hint for the failures users actually hit.</summary>
+    /// Plain-language hint for the failures users actually hit.
     private string Hint(HttpStatusCode code) => (Name, code) switch
     {
         ("elevenlabs", HttpStatusCode.Unauthorized) =>
@@ -189,7 +187,7 @@ internal abstract class HttpTtsProvider : ITtsProvider
     protected static StringContent Json<T>(T value) =>
         new(JsonSerializer.Serialize(value), Encoding.UTF8, "application/json");
 
-    /// <summary>Keeps error text on one short line so a provider error cannot spam the log.</summary>
+    /// Keeps error text on one short line so a provider error cannot spam the log.
     private static string Sanitize(string body)
     {
         var builder = new StringBuilder(body.Length);

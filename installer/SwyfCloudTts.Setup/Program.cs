@@ -37,7 +37,7 @@ namespace SwyfCloudTts.Setup
             return exitCode;
         }
 
-        /// <summary>"--install", "--uninstall" or "--status" with "--quiet": no window, exit code 0 on success.</summary>
+        /// "--install", "--uninstall" or "--status" with "--quiet": no window, exit code 0 on success.
         private static int RunQuiet(Options options)
         {
             AttachConsole(-1);
@@ -97,7 +97,7 @@ namespace SwyfCloudTts.Setup
         public string Language;
         public string StateDirectory = DefaultStateDirectory;
 
-        /// <summary>A custom state folder is for test runs, so it never touches the registry.</summary>
+        /// A custom state folder is for test runs, so it never touches the registry.
         public bool Integrate = true;
 
         public static string DefaultStateDirectory => Path.Combine(
@@ -149,7 +149,7 @@ namespace SwyfCloudTts.Setup
             return options;
         }
 
-        /// <summary>Arguments for the elevated copy, which starts the chosen action right away.</summary>
+        /// Arguments for the elevated copy, which starts the chosen action right away.
         public string ElevatedArguments(bool install, string game, bool purge)
         {
             var parts = new List<string> { install ? "--install" : "--uninstall", "--run", "--game", Quote(game), "--lang", Strings.Code };
@@ -183,7 +183,7 @@ namespace SwyfCloudTts.Setup
             }
         }
 
-        /// <summary>Returns false when the user declines the UAC prompt.</summary>
+        /// Returns false when the user declines the UAC prompt.
         public static bool Relaunch(string arguments)
         {
             try
@@ -202,7 +202,7 @@ namespace SwyfCloudTts.Setup
         }
     }
 
-    /// <summary>Plain-text log next to the settings, attached to bug reports.</summary>
+    /// Plain-text log next to the settings, attached to bug reports.
     internal static class SetupLog
     {
         private static string _path;

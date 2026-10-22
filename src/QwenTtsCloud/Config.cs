@@ -37,21 +37,21 @@ internal sealed class Config
     [JsonPropertyName("logging")]
     public LoggingConfig Logging { get; set; } = new();
 
-    /// <summary>Path this configuration was read from (not serialized).</summary>
+    /// Path this configuration was read from (not serialized).
     [JsonIgnore]
     public string Path { get; private set; } = "";
 
     [JsonIgnore]
     public string StateDirectory { get; private set; } = "";
 
-    /// <summary>SWYF_TTS_STATE_DIR moves all state (config, voices, cache, logs) elsewhere, for tests.</summary>
+    /// SWYF_TTS_STATE_DIR moves all state (config, voices, cache, logs) elsewhere, for tests.
     public static string StateRoot =>
         Environment.GetEnvironmentVariable("SWYF_TTS_STATE_DIR") is { Length: > 0 } custom
             ? System.IO.Path.GetFullPath(custom)
             : System.IO.Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SWYF-CloudTTS");
 
-    /// <summary>Shared with the in-game settings card, which edits the same file.</summary>
+    /// Shared with the in-game settings card, which edits the same file.
     public static string UserConfigPath => System.IO.Path.Combine(StateRoot, FileName);
 
     public static string ResolvePath(string? explicitPath = null)
@@ -71,7 +71,7 @@ internal sealed class Config
         return UserConfigPath;
     }
 
-    /// <summary>Versions before 1.2 kept the config next to the worker inside the game folder.</summary>
+    /// Versions before 1.2 kept the config next to the worker inside the game folder.
     private static void MigrateLegacyConfig()
     {
         string legacy = System.IO.Path.Combine(AppContext.BaseDirectory, FileName);
@@ -179,17 +179,17 @@ internal sealed class Config
         [JsonPropertyName("modelId")] public string ModelId { get; set; } = "eleven_v4_turbo";
         [JsonPropertyName("autoClone")] public bool AutoClone { get; set; } = true;
 
-        /// <summary>Global voice; empty picks a default ElevenLabs voice per character.</summary>
+        /// Global voice; empty picks a default ElevenLabs voice per character.
         [JsonPropertyName("defaultVoiceId")] public string DefaultVoiceId { get; set; } = "";
 
-        /// <summary>Monthly voice additions the mod leaves unused, for the player's own voices.</summary>
+        /// Monthly voice additions the mod leaves unused, for the player's own voices.
         [JsonPropertyName("reserveVoiceEdits")] public int ReserveVoiceEdits { get; set; } = 5;
 
         [JsonPropertyName("stability")] public double Stability { get; set; } = 0.5;
         [JsonPropertyName("similarityBoost")] public double SimilarityBoost { get; set; } = 0.8;
     }
 
-    /// <summary>Google AI Studio (Gemini TTS), not Google Cloud TTS.</summary>
+    /// Google AI Studio (Gemini TTS), not Google Cloud TTS.
     internal sealed class GoogleAiConfig
     {
         [JsonPropertyName("apiKey")] public string ApiKey { get; set; } = "";
@@ -199,33 +199,31 @@ internal sealed class Config
         [JsonPropertyName("style")] public string Style { get; set; } = "natural, conversational";
     }
 
-    /// <summary>
     /// Self-hosted Qwen3-TTS on a rented GPU (or any OpenAI-compatible TTS server such as
     /// k8bit/qwen3-tts). "clone" sends the reference clip the game already provides, so every
     /// character keeps their own voice; "voice" uses a reference clip preloaded on the server;
     /// "design" uses a custom POST /tts VoiceDesign wrapper and builds the voice from Instruct.
-    /// </summary>
     internal sealed class QwenRemoteConfig
     {
-        /// <summary>Server root, for example http://1.2.3.4:8000. A trailing /v1 is accepted.</summary>
+        /// Server root, for example http://1.2.3.4:8000. A trailing /v1 is accepted.
         [JsonPropertyName("baseUrl")] public string BaseUrl { get; set; } = "http://127.0.0.1:8000";
 
-        /// <summary>Optional bearer token (RunPod proxy, reverse proxy, or a custom gateway).</summary>
+        /// Optional bearer token (RunPod proxy, reverse proxy, or a custom gateway).
         [JsonPropertyName("apiKey")] public string ApiKey { get; set; } = "";
 
-        /// <summary>"clone" (per-character reference audio), "voice" (named voice on the server)
-        /// or "design" (POST /tts with a voice description).</summary>
+        /// "clone" (per-character reference audio), "voice" (named voice on the server)
+        /// or "design" (POST /tts with a voice description).
         [JsonPropertyName("mode")] public string Mode { get; set; } = "clone";
 
         [JsonPropertyName("model")] public string Model { get; set; } = "tts-1";
 
-        /// <summary>Server-side voice name for "voice" mode; also used if cloning is unavailable.</summary>
+        /// Server-side voice name for "voice" mode; also used if cloning is unavailable.
         [JsonPropertyName("voice")] public string Voice { get; set; } = "";
 
-        /// <summary>"auto" follows the language the game asks for; otherwise a Qwen3-TTS language name.</summary>
+        /// "auto" follows the language the game asks for; otherwise a Qwen3-TTS language name.
         [JsonPropertyName("language")] public string Language { get; set; } = "auto";
 
-        /// <summary>Optional style instruction (CustomVoice / VoiceDesign models).</summary>
+        /// Optional style instruction (CustomVoice / VoiceDesign models).
         [JsonPropertyName("instruct")] public string? Instruct { get; set; }
     }
 
@@ -234,25 +232,23 @@ internal sealed class Config
         [JsonPropertyName("enabled")] public bool Enabled { get; set; } = true;
         [JsonPropertyName("maxMegabytes")] public int MaxMegabytes { get; set; } = 512;
 
-        /// <summary>The settings card drops cached audio when voices or the provider change.</summary>
+        /// The settings card drops cached audio when voices or the provider change.
         [JsonPropertyName("clearOnVoiceChange")] public bool ClearOnVoiceChange { get; set; } = true;
     }
 
     internal sealed class NetworkConfig
     {
-        /// <summary>Seconds without audio before a request is retried. The first audio of a line has 15 s in total.</summary>
+        /// Seconds without audio before a request is retried. The first audio of a line has 15 s in total.
         [JsonPropertyName("timeoutSeconds")] public int TimeoutSeconds { get; set; } = 12;
 
-        /// <summary>Total attempts per request (1 = no retry).</summary>
+        /// Total attempts per request (1 = no retry).
         [JsonPropertyName("maxAttempts")] public int MaxAttempts { get; set; } = 2;
     }
 
     internal sealed class FallbackConfig
     {
-        /// <summary>
         /// Off by default: the local model needs most of the game's 20 s first-audio limit just to
         /// load, so it is only tried when the cloud fails within a few seconds.
-        /// </summary>
         [JsonPropertyName("passthrough")] public bool Passthrough { get; set; }
         [JsonPropertyName("originalExe")] public string OriginalExe { get; set; } = "QwenTtsWorker.orig.exe";
     }

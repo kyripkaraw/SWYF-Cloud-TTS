@@ -2,10 +2,8 @@ using System.Buffers.Binary;
 
 namespace SwyfCloudTts;
 
-/// <summary>
 /// Writes float32 audio to the game in the exact frame format QwenWorkerClient expects:
 /// int32 marker 2, int32 sample count, count * float32 little-endian samples.
-/// </summary>
 internal sealed class SampleSink
 {
     private readonly BinaryWriter _writer;
@@ -63,7 +61,7 @@ internal sealed class SampleSink
         }
     }
 
-    /// <summary>Adds silence so a partially failed cloud request still ends with a well formed stream.</summary>
+    /// Adds silence so a partially failed cloud request still ends with a well formed stream.
     public void PadSilence(int samples)
     {
         for (int i = 0; i < samples && !Capped; i++)
@@ -72,7 +70,7 @@ internal sealed class SampleSink
         }
     }
 
-    /// <summary>Replays already encoded 16-bit audio (used by the disk cache) in protocol chunks.</summary>
+    /// Replays already encoded 16-bit audio (used by the disk cache) in protocol chunks.
     public static int PumpS16(BinaryWriter writer, ReadOnlySpan<byte> s16, int maxSamples, int chunkSamples = 4800)
     {
         int samples = Math.Min(s16.Length / 2, maxSamples);

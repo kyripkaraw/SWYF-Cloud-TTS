@@ -1,6 +1,6 @@
 namespace SwyfCloudTts.Providers;
 
-/// <summary>Single place that maps a config provider name to an implementation.</summary>
+/// Single place that maps a config provider name to an implementation.
 internal static class ProviderFactory
 {
     public static ITtsProvider Create(Config config, VoiceResolver voices, out bool passthroughOnly)

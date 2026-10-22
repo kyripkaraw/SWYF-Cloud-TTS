@@ -20,7 +20,7 @@ namespace SwyfCloudTts.Plugin
             "kolkata-qwen-runtime",
             "QwenTtsWorker.exe");
 
-        /// <summary>Copy kept by the installer; still the cloud worker after Steam restores the original.</summary>
+        /// Copy kept by the installer; still the cloud worker after Steam restores the original.
         public static string AppWorkerPath => Path.Combine(StateDirectory, "bin", "QwenTtsWorker.exe");
 
         public static string TestWorkerPath => File.Exists(AppWorkerPath) ? AppWorkerPath : RuntimeWorkerPath;

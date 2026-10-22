@@ -6,12 +6,10 @@ using UnityEngine.UIElements;
 
 namespace SwyfCloudTts.Plugin
 {
-    /// <summary>
     /// Makes the card look like the game's own settings. The game styles its controls through
     /// USS classes, so every control the card adds takes the classes of a matching control the
     /// game already shows (the Qwen dropdown, the FPS slider, the Deepgram key field...). Only
     /// when such a control cannot be found does the card fall back to its own colours.
-    /// </summary>
     internal static class CloudTtsTheme
     {
         internal static readonly Color InfoColor = new Color(0.78f, 0.80f, 0.86f);
@@ -36,7 +34,7 @@ namespace SwyfCloudTts.Plugin
         private static string[] _resetButton;
         private static Font _font;
 
-        /// <summary>Not public in the game's Unity version.</summary>
+        /// Not public in the game's Unity version.
         private static readonly MethodInfo ClassList =
             typeof(VisualElement).GetMethod("GetClasses", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, System.Type.EmptyTypes, null) ??
             typeof(VisualElement).GetMethod("GetClassesForIteration", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, System.Type.EmptyTypes, null);
@@ -48,7 +46,7 @@ namespace SwyfCloudTts.Plugin
             Small,
         }
 
-        /// <summary>Remembers the classes of the game's own controls. Called before the card is built.</summary>
+        /// Remembers the classes of the game's own controls. Called before the card is built.
         public static void Capture(VisualElement root)
         {
             _dropdown = ClassesOf(First<DropdownField>(root, "qwen-tts-dropdown", "speech-recognition-dropdown", "vsync-dropdown"));
@@ -65,10 +63,8 @@ namespace SwyfCloudTts.Plugin
                            " reset=" + Describe(_resetButton));
         }
 
-        /// <summary>
         /// The game's default font has no Cyrillic; it switches fonts only for its own Russian.
         /// A Ukrainian or Russian card over an English game borrows that font.
-        /// </summary>
         public static void UseFontFor(string cardLanguage)
         {
             _font = null;
@@ -83,7 +79,7 @@ namespace SwyfCloudTts.Plugin
             }
         }
 
-        /// <summary>Applies the borrowed font and the game's casing rules to every text in the card.</summary>
+        /// Applies the borrowed font and the game's casing rules to every text in the card.
         public static void ApplyText(VisualElement root)
         {
             foreach (TextElement text in root.Query<TextElement>().ToList())
@@ -234,7 +230,7 @@ namespace SwyfCloudTts.Plugin
             button.style.paddingRight = 14f;
         }
 
-        /// <summary>Help lines use the game's class; without it they would inherit the label colour.</summary>
+        /// Help lines use the game's class; without it they would inherit the label colour.
         public static void StyleHelp(Label label)
         {
             label.AddToClassList("setting-help");
@@ -317,7 +313,7 @@ namespace SwyfCloudTts.Plugin
             box.style.paddingRight = 6f;
         }
 
-        /// <summary>The dropdown list opens in a popup outside the card, so it is styled when it opens.</summary>
+        /// The dropdown list opens in a popup outside the card, so it is styled when it opens.
         private static void HookPopup(DropdownField field)
         {
             field.RegisterCallback<PointerDownEvent>(_ => field.schedule.Execute(() =>

@@ -4,10 +4,8 @@ using UnityEngine;
 
 namespace SwyfCloudTts.Plugin
 {
-    /// <summary>
     /// Plays the 16-bit WAV files the worker writes (test lines and saved game clips) on a
     /// separate AudioSource. Float WAV is not needed: the game's mscorlib has no BitConverter.ToSingle.
-    /// </summary>
     internal static class CloudTtsAudio
     {
         private static AudioSource _current;

@@ -2,11 +2,9 @@ using System.Net;
 
 namespace SwyfCloudTts.Providers;
 
-/// <summary>
 /// ElevenLabs. With autoClone every character speaks with a clone of the reference clip the game
 /// sends, which keeps their identity; <see cref="ElevenLabsClones"/> fits those clones into the
 /// account's voice slots. Characters without a clone get a default voice matching their pitch.
-/// </summary>
 internal sealed class ElevenLabsTts : HttpTtsProvider
 {
     private readonly Config.ElevenLabsConfig _config;
@@ -24,10 +22,8 @@ internal sealed class ElevenLabsTts : HttpTtsProvider
 
     public override bool Ready => !string.IsNullOrWhiteSpace(_config.ApiKey);
 
-    /// <summary>
     /// Clones are keyed by character rather than by voice id, so a character whose clone was rotated
     /// out still gets cached lines back without being cloned again.
-    /// </summary>
     public override string VoiceSignature(VoiceEntry voice)
     {
         string mapped = _voices.GetVoiceId(voice, Name);
@@ -83,7 +79,7 @@ internal sealed class ElevenLabsTts : HttpTtsProvider
 
     private string FallbackVoice(VoiceEntry voice) => _voices.PickElevenLabsVoice(voice, _config.DefaultVoiceId);
 
-    /// <summary>The streaming endpoint delivers the first audio long before the whole line is ready.</summary>
+    /// The streaming endpoint delivers the first audio long before the whole line is ready.
     private async Task StreamAsync(string voiceId, string text, Action<float[]> emit, CancellationToken token)
     {
         var payload = new Dictionary<string, object>

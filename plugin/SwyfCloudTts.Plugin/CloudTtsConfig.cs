@@ -6,10 +6,8 @@ using Newtonsoft.Json.Linq;
 
 namespace SwyfCloudTts.Plugin
 {
-    /// <summary>
     /// Edits the same JSON file as the worker. It deliberately works on a JObject so
     /// hand-edited and future fields survive a round trip through the in-game UI.
-    /// </summary>
     internal sealed class CloudTtsConfig
     {
         public static readonly string[] Providers =
@@ -30,10 +28,8 @@ namespace SwyfCloudTts.Plugin
             "Zubenelgenubi", "Vindemiatrix", "Sadachbia", "Sadaltager", "Sulafat",
         };
 
-        /// <summary>
         /// ElevenLabs default voices: id, name, then traits that have a translation ("voice.male"...).
         /// They take no voice slots and work on every plan, Free included.
-        /// </summary>
         public static readonly string[][] ElevenLabsVoices =
         {
             new[] { "JBFqnCBsd6RMkjVDRZzb", "George", "male", "british" },
@@ -59,10 +55,10 @@ namespace SwyfCloudTts.Plugin
             new[] { "SAz9YHcvj6GT2YYXdXww", "River", "neutral" },
         };
 
-        /// <summary>The 1.2 default ("Rachel"); the worker treats it as no choice, and so does the card.</summary>
+        /// The 1.2 default ("Rachel"); the worker treats it as no choice, and so does the card.
         public const string LegacyElevenLabsDefault = "21m00Tcm4TlvDq8ikWAM";
 
-        /// <summary>"George, male, British" in the card language, or null for an unknown id.</summary>
+        /// "George, male, British" in the card language, or null for an unknown id.
         public static string ElevenLabsDefaultLabel(string id)
         {
             foreach (string[] voice in ElevenLabsVoices)
@@ -151,7 +147,7 @@ namespace SwyfCloudTts.Plugin
 
         public string Provider => NormalizeProvider(String(Root, null, "provider", "googleai"));
 
-        /// <summary>Card language setting: auto, en, uk or ru. Only the card reads it.</summary>
+        /// Card language setting: auto, en, uk or ru. Only the card reads it.
         public string UiLanguage => String(Root, "ui", "language", "auto");
 
         public static CloudTtsConfig Load()
@@ -182,7 +178,7 @@ namespace SwyfCloudTts.Plugin
 
         public JObject CloneRoot() => (JObject)Root.DeepClone();
 
-        /// <summary>Writes atomically and replaces the in-memory root only after success.</summary>
+        /// Writes atomically and replaces the in-memory root only after success.
         public void Save(JObject root)
         {
             Directory.CreateDirectory(CloudTtsPaths.StateDirectory);
@@ -260,10 +256,10 @@ namespace SwyfCloudTts.Plugin
         public static bool NeedsKey(string provider)
             => provider == "googleai" || provider == "elevenlabs" || provider == "openai";
 
-        /// <summary>Services that speak through the network and have models and voices to choose.</summary>
+        /// Services that speak through the network and have models and voices to choose.
         public static bool IsCloud(string provider) => NeedsKey(provider) || provider == "qwenremote";
 
-        /// <summary>qwenremote accepts an optional bearer token, so its key row is shown but optional.</summary>
+        /// qwenremote accepts an optional bearer token, so its key row is shown but optional.
         public static bool UsesKey(string provider) => NeedsKey(provider) || provider == "qwenremote";
 
         public static string ModelKey(string provider)
@@ -326,7 +322,7 @@ namespace SwyfCloudTts.Plugin
             }
         }
 
-        /// <summary>Only the fields that actually affect which voice is spoken.</summary>
+        /// Only the fields that actually affect which voice is spoken.
         public static string VoiceFingerprint(JObject root)
         {
             string provider = NormalizeProvider(String(root, null, "provider", "googleai"));

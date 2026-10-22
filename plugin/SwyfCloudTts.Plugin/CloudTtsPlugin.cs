@@ -6,11 +6,9 @@ using UnityEngine.UIElements;
 
 namespace SwyfCloudTts.Plugin
 {
-    /// <summary>
     /// Hosts the Cloud TTS card inside Settings > Speech. The game ships a stripped mscorlib
     /// (no MethodBase.GetMethodBody), so IL patching is impossible; instead the pause menu
     /// controller is polled and the card is attached once its speech screen exists.
-    /// </summary>
     public sealed class CloudTtsPlugin : MonoBehaviour
     {
         private const float ScanInterval = 1f;
@@ -30,6 +28,7 @@ namespace SwyfCloudTts.Plugin
         {
             DontDestroyOnLoad(gameObject);
             PluginLog.Info("settings host created");
+            CloudTtsHardwareGate.Apply(CloudTtsConfig.Load());
         }
 
         private void Update()
@@ -210,7 +209,7 @@ namespace SwyfCloudTts.Plugin
             }
         }
 
-        /// <summary>Builds the card again on the next scan, for example in another language.</summary>
+        /// Builds the card again on the next scan, for example in another language.
         internal static void RequestRebuild() => _rebuild = true;
 
         internal static bool ReloadWorker()

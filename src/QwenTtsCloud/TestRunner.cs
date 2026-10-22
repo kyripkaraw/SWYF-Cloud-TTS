@@ -3,11 +3,9 @@ using SwyfCloudTts.Providers;
 
 namespace SwyfCloudTts;
 
-/// <summary>
 /// "QwenTtsWorker.exe --test": synthesizes one phrase into a WAV file. The in-game settings card
 /// uses it for the Test button. It never writes to the audio cache, so it is safe while the
 /// game is running. ElevenLabs only clones here when autoClone is on and a real game clip exists.
-/// </summary>
 internal static class TestRunner
 {
     public static int Run(string[] args)
@@ -213,7 +211,7 @@ internal static class TestRunner
         return 0;
     }
 
-    /// <summary>A clip the game has already sent (the given speaker's, or the first one), to test cloning.</summary>
+    /// A clip the game has already sent (the given speaker's, or the first one), to test cloning.
     private static (float[] Samples, string Speaker) TryLoadReference(string stateDirectory, string? speakerId)
     {
         try

@@ -27,7 +27,7 @@ namespace SwyfCloudTts.Setup
         public bool CardBlocked;
     }
 
-    /// <summary>A failure explained in words the player can act on; shown without a stack trace.</summary>
+    /// A failure explained in words the player can act on; shown without a stack trace.
     internal sealed class SetupException : Exception
     {
         public SetupException(string message) : base(message)
@@ -35,14 +35,12 @@ namespace SwyfCloudTts.Setup
         }
     }
 
-    /// <summary>
     /// Installs the mod into one game folder:
     /// the cloud worker replaces QwenTtsWorker.exe (the original is kept as QwenTtsWorker.orig.exe)
     /// and its SHA-256 goes into runtime-manifest.json, which the game verifies; Unity Doorstop
     /// loads the in-game settings card from the SwyfCloudTts folder; a worker copy in the user
     /// profile keeps the card's Test button working after Steam restores the original, and a copy
     /// of this setup there serves the "Apps &amp; features" entry.
-    /// </summary>
     internal sealed class Installer
     {
         public const string RuntimeRelative = @"Scam With Your Friends_Data\StreamingAssets\kolkata-qwen-runtime";
@@ -101,7 +99,7 @@ namespace SwyfCloudTts.Setup
 
         public static string Version => Assembly.GetExecutingAssembly().GetName().Version.ToString(3);
 
-        /// <summary>Folders the setup cannot delete while it runs from inside them; removed after exit.</summary>
+        /// Folders the setup cannot delete while it runs from inside them; removed after exit.
         public static List<string> DeleteOnExit { get; } = new List<string>();
 
         private static string SelfPath => Assembly.GetEntryAssembly()?.Location ?? "";
@@ -250,7 +248,7 @@ namespace SwyfCloudTts.Setup
             SetupLog.Write($"uninstalled from {_game} (settings removed: {removeSettings})");
         }
 
-        /// <summary>Removes folders the setup could not delete while it was running from them.</summary>
+        /// Removes folders the setup could not delete while it was running from them.
         public static void ScheduleDeleteOnExit()
         {
             if (DeleteOnExit.Count == 0)
@@ -303,7 +301,7 @@ namespace SwyfCloudTts.Setup
             }
         }
 
-        /// <summary>A worker left running by a crashed game would lock the files about to be replaced.</summary>
+        /// A worker left running by a crashed game would lock the files about to be replaced.
         private void StopOwnWorkers()
         {
             foreach (Process process in Process.GetProcessesByName(WorkerProcess))
@@ -398,7 +396,7 @@ namespace SwyfCloudTts.Setup
             DeleteDirectory(Path.Combine(_game, PluginFolderName));
         }
 
-        /// <summary>Versions before 1.2 kept the config, API keys included, inside the game folder.</summary>
+        /// Versions before 1.2 kept the config, API keys included, inside the game folder.
         private void MigrateConfig()
         {
             string legacy = Path.Combine(Runtime, ConfigName);
@@ -417,7 +415,7 @@ namespace SwyfCloudTts.Setup
             DeleteFile(legacy);
         }
 
-        /// <summary>Versions before 1.3 had a browser settings panel with its own copy and shortcut.</summary>
+        /// Versions before 1.3 had a browser settings panel with its own copy and shortcut.
         private void RemoveLegacyPanel()
         {
             DeleteDirectory(Path.Combine(_state, "panel"));
@@ -527,7 +525,7 @@ namespace SwyfCloudTts.Setup
             }
         }
 
-        /// <summary>Another mod loader (BepInEx, MelonLoader...) owns winhttp.dll; replacing it would break that mod.</summary>
+        /// Another mod loader (BepInEx, MelonLoader...) owns winhttp.dll; replacing it would break that mod.
         private static bool IsForeignLoader(string game)
         {
             string config = Path.Combine(game, LoaderConfigName);
@@ -626,7 +624,7 @@ namespace SwyfCloudTts.Setup
         }
     }
 
-    /// <summary>Files embedded into the setup at build time.</summary>
+    /// Files embedded into the setup at build time.
     internal static class Payload
     {
         private static readonly Dictionary<string, byte[]> Cache = new Dictionary<string, byte[]>();

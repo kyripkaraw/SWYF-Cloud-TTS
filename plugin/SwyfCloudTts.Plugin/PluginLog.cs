@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace SwyfCloudTts.Plugin
 {
-    /// <summary>Writes to %LOCALAPPDATA%\SWYF-CloudTTS\plugin.log and to the Unity log.</summary>
+    /// Writes to %LOCALAPPDATA%\SWYF-CloudTTS\plugin.log and to the Unity log.
     internal static class PluginLog
     {
         private const long MaxLogBytes = 1024 * 1024;

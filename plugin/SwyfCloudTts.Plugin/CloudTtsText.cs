@@ -5,10 +5,8 @@ using UnityEngine;
 
 namespace SwyfCloudTts.Plugin
 {
-    /// <summary>
     /// Texts of the settings card in English, Ukrainian and Russian. The game itself has no
     /// Ukrainian, so "auto" follows the game when it runs in Russian and Windows otherwise.
-    /// </summary>
     internal static class CloudTtsText
     {
         public static readonly string[] Settings = { "auto", "en", "uk", "ru" };
@@ -48,9 +46,9 @@ namespace SwyfCloudTts.Plugin
             },
             ["game.noHardware"] = new[]
             {
-                "The game does not use AI voices on this PC (Windows on ARM), so cloud voices cannot work here.",
-                "На цьому ПК гра не вмикає AI-голоси (Windows на ARM), тому хмарні голоси тут не працюватимуть.",
-                "На этом ПК игра не включает AI-голоса (Windows на ARM), поэтому облачные голоса здесь не заработают.",
+                "The game does not use AI voices on this PC (Windows on ARM, or a hardware check the mod could not get past), so cloud voices cannot work here. Details are in plugin.log.",
+                "На цьому ПК гра не вмикає AI-голоси (Windows на ARM або перевірка заліза, яку мод не зміг обійти), тому хмарні голоси тут не працюватимуть. Подробиці в plugin.log.",
+                "На этом ПК игра не включает AI-голоса (Windows на ARM или проверка железа, которую мод не смог обойти), поэтому облачные голоса здесь не заработают. Подробности в plugin.log.",
             },
             ["game.downloading"] = new[]
             {
@@ -479,7 +477,7 @@ namespace SwyfCloudTts.Plugin
             },
         };
 
-        /// <summary>Resolved language of the card: "en", "uk" or "ru".</summary>
+        /// Resolved language of the card: "en", "uk" or "ru".
         public static string Current { get; private set; } = "en";
 
         public static void Use(string setting) => Current = Resolve(setting);

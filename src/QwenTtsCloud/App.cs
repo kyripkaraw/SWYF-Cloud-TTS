@@ -3,24 +3,20 @@ using SwyfCloudTts.Providers;
 
 namespace SwyfCloudTts;
 
-/// <summary>
 /// Protocol implementation. Mirrors the original worker's validation exactly, then proxies
 /// speech generation to a cloud provider while streaming results back in the same format.
-/// </summary>
 internal sealed class App : IDisposable
 {
     private const int MaxSamples = 720000;
 
-    /// <summary>50 ms of silence, enough to satisfy "produced some speech" checks.</summary>
+    /// 50 ms of silence, enough to satisfy "produced some speech" checks.
     private const int SilencePadSamples = 1200;
 
-    /// <summary>
     /// The game gives up on the worker for the whole session when the first audio of a line takes
     /// more than 20 s, so a line still silent after this budget is answered with silence instead.
-    /// </summary>
     private static readonly TimeSpan FirstAudioBudget = TimeSpan.FromSeconds(15);
 
-    /// <summary>The local model needs most of the game's 20 s just to load.</summary>
+    /// The local model needs most of the game's 20 s just to load.
     private static readonly TimeSpan PassthroughCutoff = TimeSpan.FromSeconds(5);
 
     private readonly Config _config;

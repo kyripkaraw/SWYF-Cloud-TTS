@@ -4,13 +4,11 @@ using System.Text.Json.Serialization;
 
 namespace SwyfCloudTts;
 
-/// <summary>
 /// One speaker, identified by the hash of the voice reference the game sends with every
 /// request. The mapping lives on disk so a character keeps the same cloud voice forever.
-/// </summary>
 internal sealed class VoiceEntry
 {
-    /// <summary>Speaker hash; the dictionary key in voices.json.</summary>
+    /// Speaker hash; the dictionary key in voices.json.
     [JsonIgnore]
     public string Id { get; set; } = "";
 
@@ -22,10 +20,10 @@ internal sealed class VoiceEntry
 
     [JsonPropertyName("firstSeen")] public DateTime FirstSeenUtc { get; set; } = DateTime.UtcNow;
 
-    /// <summary>Explicit choices only: provider name -> provider specific voice id.</summary>
+    /// Explicit choices only: provider name -> provider specific voice id.
     [JsonPropertyName("voices")] public Dictionary<string, string> Voices { get; set; } = new();
 
-    /// <summary>Set in the settings card: the ElevenLabs clone of this character is never rotated out.</summary>
+    /// Set in the settings card: the ElevenLabs clone of this character is never rotated out.
     [JsonPropertyName("keepClone")] public bool? KeepClone { get; set; }
 }
 
@@ -34,12 +32,10 @@ internal sealed class VoiceBook
     [JsonPropertyName("speakers")] public Dictionary<string, VoiceEntry> Speakers { get; set; } = new();
 }
 
-/// <summary>
 /// Turns the per-request reference audio into a stable speaker id and a cloud voice.
 /// The game never says who is talking; it only sends that character's reference clip,
 /// which works as a fingerprint. voices.json is shared with the in-game settings card,
 /// so it is re-read whenever the card has changed it.
-/// </summary>
 internal sealed class VoiceResolver
 {
     private static readonly string[] OpenAiMale = { "onyx", "echo", "ash", "fable" };
@@ -50,7 +46,7 @@ internal sealed class VoiceResolver
     private static readonly string[] GoogleFemale = { "Kore", "Aoede", "Leda", "Callirrhoe", "Autonoe", "Despina" };
     private static readonly string[] GoogleNeutral = { "Charon", "Zephyr", "Schedar" };
 
-    /// <summary>ElevenLabs default voices (October 2026). They take no voice slots and cannot be deleted.</summary>
+    /// ElevenLabs default voices (October 2026). They take no voice slots and cannot be deleted.
     private static readonly string[] ElevenMale =
     {
         "CwhRBWXzGAHq8TQ4Fs17", "IKne3meq5aSn9XLyUdCD", "JBFqnCBsd6RMkjVDRZzb", "N2lVS1w4EtoT3dr4eOWO",
@@ -67,7 +63,7 @@ internal sealed class VoiceResolver
 
     private static readonly string[] ElevenNeutral = { "SAz9YHcvj6GT2YYXdXww", "JBFqnCBsd6RMkjVDRZzb", "XrExE9yKIg1WjnnlVkGX" };
 
-    /// <summary>The stock voice older configs carried as their default; treated as "not chosen".</summary>
+    /// The stock voice older configs carried as their default; treated as "not chosen".
     private const string LegacyElevenDefault = "21m00Tcm4TlvDq8ikWAM";
 
     private readonly object _gate = new();
@@ -126,7 +122,7 @@ internal sealed class VoiceResolver
         }
     }
 
-    /// <summary>A known character by id; saved clips round-trip through 16 bits, so their hash can differ.</summary>
+    /// A known character by id; saved clips round-trip through 16 bits, so their hash can differ.
     public VoiceEntry? Find(string id)
     {
         lock (_gate)
@@ -171,7 +167,7 @@ internal sealed class VoiceResolver
     public string PickGoogleVoice(VoiceEntry entry, string? configured)
         => PickVoice(entry, "googleai", configured, GoogleMale, GoogleFemale, GoogleNeutral);
 
-    /// <summary>Voice for a character without a clone: their own choice, the global voice, or a default voice.</summary>
+    /// Voice for a character without a clone: their own choice, the global voice, or a default voice.
     public string PickElevenLabsVoice(VoiceEntry entry, string? configured)
         => PickVoice(entry, "elevenlabs", configured == LegacyElevenDefault ? null : configured,
             ElevenMale, ElevenFemale, ElevenNeutral);
@@ -185,7 +181,7 @@ internal sealed class VoiceResolver
         }
     }
 
-    /// <summary>Voice ids currently assigned to any character for this provider.</summary>
+    /// Voice ids currently assigned to any character for this provider.
     public HashSet<string> MappedVoiceIds(string provider)
     {
         lock (_gate)
@@ -204,7 +200,7 @@ internal sealed class VoiceResolver
         }
     }
 
-    /// <summary>Forgets a voice that no longer exists, for every character that used it.</summary>
+    /// Forgets a voice that no longer exists, for every character that used it.
     public void UnmapVoice(string provider, string voiceId)
     {
         lock (_gate)
@@ -227,18 +223,16 @@ internal sealed class VoiceResolver
         }
     }
 
-    /// <summary>A self-hosted server decides which voices exist, so there is no preset pool.</summary>
+    /// A self-hosted server decides which voices exist, so there is no preset pool.
     public string PickQwenVoice(VoiceEntry entry, string? configured)
     {
         string mapped = GetVoiceId(entry, "qwenremote");
         return mapped.Length > 0 ? mapped : configured ?? "";
     }
 
-    /// <summary>
     /// Character choice, then the global voice, then a pick from the gender pool. The pool pick
     /// is derived from stored speaker data, so it is stable without being written to disk, and
     /// changing the global voice later still affects every character without an explicit choice.
-    /// </summary>
     private string PickVoice(VoiceEntry entry, string provider, string? configured,
                              string[] male, string[] female, string[] neutral)
     {

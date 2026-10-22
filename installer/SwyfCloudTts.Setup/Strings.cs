@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace SwyfCloudTts.Setup
 {
-    /// <summary>User-facing text in English, Ukrainian and Russian, picked from the Windows UI language.</summary>
+    /// User-facing text in English, Ukrainian and Russian, picked from the Windows UI language.
     internal static class Strings
     {
         private static int _language;

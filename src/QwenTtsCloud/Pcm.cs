@@ -4,18 +4,18 @@ using System.Text;
 
 namespace SwyfCloudTts;
 
-/// <summary>PCM helpers. Everything in this mod is 24 kHz mono float32, like the game expects.</summary>
+/// PCM helpers. Everything in this mod is 24 kHz mono float32, like the game expects.
 internal static class Pcm
 {
     public const int SampleRate = 24000;
 
-    /// <summary>Converts little-endian signed 16-bit PCM into float samples in [-1, 1].</summary>
+    /// Converts little-endian signed 16-bit PCM into float samples in [-1, 1].
     internal sealed class S16ToFloat
     {
         private byte _leftover;
         private bool _hasLeftover;
 
-        /// <summary>Returns the samples completed by this batch (may be empty).</summary>
+        /// Returns the samples completed by this batch (may be empty).
         public float[] Push(ReadOnlySpan<byte> bytes)
         {
             int start = 0;
@@ -58,7 +58,7 @@ internal static class Pcm
             return index == result.Length ? result : result[..index];
         }
 
-        /// <summary>Pads an odd trailing byte so a stream never ends on half a sample.</summary>
+        /// Pads an odd trailing byte so a stream never ends on half a sample.
         public float[] Flush()
         {
             if (!_hasLeftover)
@@ -71,7 +71,7 @@ internal static class Pcm
         }
     }
 
-    /// <summary>Encodes float samples as little-endian 32-bit floats, the format the game reads.</summary>
+    /// Encodes float samples as little-endian 32-bit floats, the format the game reads.
     public static byte[] FloatToBytes(ReadOnlySpan<float> samples)
     {
         var bytes = new byte[samples.Length * 4];
@@ -108,7 +108,7 @@ internal static class Pcm
         return bytes;
     }
 
-    /// <summary>Stable id for a speaker reference; used to remember which cloud voice belongs to whom.</summary>
+    /// Stable id for a speaker reference; used to remember which cloud voice belongs to whom.
     public static string HashReference(ReadOnlySpan<float> reference)
     {
         // Quantize to 16 bit so tiny floating point differences don't change the id.
@@ -117,7 +117,7 @@ internal static class Pcm
         return Convert.ToHexString(hash, 0, 8).ToLowerInvariant();
     }
 
-    /// <summary>Very rough median pitch estimate, used only to pick a plausible cloud voice.</summary>
+    /// Very rough median pitch estimate, used only to pick a plausible cloud voice.
     public static double EstimatePitchHz(ReadOnlySpan<float> samples, int sampleRate = SampleRate)
     {
         const int frame = 1024;
@@ -173,11 +173,9 @@ internal static class Pcm
         return candidates[candidates.Count / 2];
     }
 
-    /// <summary>
     /// Decodes a RIFF/WAVE byte array (16-bit PCM, 24-bit PCM, 8-bit PCM or 32-bit float,
     /// any channel count) into 24 kHz mono float samples. Providers that cannot stream raw
     /// PCM at 24 kHz are normalised here.
-    /// </summary>
     public static float[] FromWav(byte[] data)
     {
         if (data == null || data.Length < 12 ||
@@ -295,7 +293,7 @@ internal static class Pcm
         return Resample(mono, sampleRate, SampleRate);
     }
 
-    /// <summary>Cheap linear resampler. Speech quality is fine and the cost is negligible.</summary>
+    /// Cheap linear resampler. Speech quality is fine and the cost is negligible.
     public static float[] Resample(float[] input, int fromRate, int toRate)
     {
         if (input.Length == 0 || fromRate <= 0 || toRate <= 0 || fromRate == toRate)
@@ -324,7 +322,7 @@ internal static class Pcm
         return output;
     }
 
-    /// <summary>Wraps float samples into a minimal 16-bit mono WAV file (used for voice cloning).</summary>
+    /// Wraps float samples into a minimal 16-bit mono WAV file (used for voice cloning).
     public static byte[] ToWav(ReadOnlySpan<float> samples, int sampleRate = SampleRate)
     {
         byte[] pcm = FloatToS16(samples);

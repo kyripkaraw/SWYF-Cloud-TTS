@@ -3,7 +3,6 @@ using System.Net.Http.Headers;
 
 namespace SwyfCloudTts.Providers;
 
-/// <summary>
 /// Qwen3-TTS on a server the user runs (rented GPU, home box, RunPod/Vast pod). Two dialects
 /// are supported:
 ///
@@ -19,10 +18,9 @@ namespace SwyfCloudTts.Providers;
 ///
 /// If the OpenAI endpoint is missing (404/405), the provider retries the same line against
 /// <c>/tts</c> once and remembers the dialect for the rest of the session.
-/// </summary>
 internal sealed class QwenRemoteTts : HttpTtsProvider
 {
-    /// <summary>Half a second at 24 kHz; anything shorter is not worth uploading as a reference.</summary>
+    /// Half a second at 24 kHz; anything shorter is not worth uploading as a reference.
     private const int MinCloneSamples = 12000;
 
     private const int DialectTts = 2;
@@ -30,10 +28,10 @@ internal sealed class QwenRemoteTts : HttpTtsProvider
     private readonly Config.QwenRemoteConfig _config;
     private readonly VoiceResolver _voices;
 
-    /// <summary>Set after the first rejected clone call; avoids paying for a doomed upload per line.</summary>
+    /// Set after the first rejected clone call; avoids paying for a doomed upload per line.
     private volatile bool _cloneUnavailable;
 
-    /// <summary>Set once the server is known to speak the <c>/tts</c> VoiceDesign dialect.</summary>
+    /// Set once the server is known to speak the <c>/tts</c> VoiceDesign dialect.
     private volatile int _dialect;
 
     private const string DefaultPrompt = "A natural, expressive voice with clear diction.";
@@ -95,7 +93,7 @@ internal sealed class QwenRemoteTts : HttpTtsProvider
     private bool ShouldClone(SpeechRequest request)
         => !DesignMode && !VoiceMode && !_cloneUnavailable && request.Reference.Length >= MinCloneSamples;
 
-    /// <summary>True for servers that have no clone endpoint, or that reject the reference clip.</summary>
+    /// True for servers that have no clone endpoint, or that reject the reference clip.
     private static bool IsCloneRejected(HttpRequestException ex) => ex.StatusCode is
         HttpStatusCode.BadRequest or
         HttpStatusCode.NotFound or
@@ -244,10 +242,8 @@ internal sealed class QwenRemoteTts : HttpTtsProvider
         return await response.Content.ReadAsByteArrayAsync(token).ConfigureAwait(false);
     }
 
-    /// <summary>
     /// A wrong URL or a stopped pod is the most common failure for a self-hosted server, and the
     /// stock SocketException text does not say what to check. Status failures keep their own text.
-    /// </summary>
     private async Task<HttpResponseMessage> SendQwenAsync(HttpRequestMessage request, CancellationToken token)
     {
         try
@@ -272,10 +268,8 @@ internal sealed class QwenRemoteTts : HttpTtsProvider
         }
     }
 
-    /// <summary>
     /// Accepts both "http://host:8000" and "http://host:8000/v1", because people copy either
     /// form from the docs. Returns the server root without a trailing slash.
-    /// </summary>
     private bool TryRoot(out string root)
     {
         root = (_config.BaseUrl ?? "").Trim().TrimEnd('/');
@@ -296,14 +290,12 @@ internal sealed class QwenRemoteTts : HttpTtsProvider
         return root + suffix;
     }
 
-    /// <summary>Per-character mapping wins, then the global server voice.</summary>
+    /// Per-character mapping wins, then the global server voice.
     private string ResolveVoice(VoiceEntry voice)
         => _voices.PickQwenVoice(voice, _config.Voice);
 
-    /// <summary>
     /// The /tts wrapper takes a free-form voice description from "instruct"; when it is empty,
     /// a short gender hint keeps the characters distinct.
-    /// </summary>
     private string ResolvePrompt(VoiceEntry voice)
     {
         string prompt = (_config.Instruct ?? "").Trim();
@@ -325,7 +317,7 @@ internal sealed class QwenRemoteTts : HttpTtsProvider
         return DefaultPrompt;
     }
 
-    /// <summary>"auto" follows the language the game asks for; the game's list matches Qwen3-TTS.</summary>
+    /// "auto" follows the language the game asks for; the game's list matches Qwen3-TTS.
     private string ResolveLanguage(SpeechRequest request)
     {
         string configured = (_config.Language ?? "").Trim();
@@ -337,10 +329,8 @@ internal sealed class QwenRemoteTts : HttpTtsProvider
         return configured;
     }
 
-    /// <summary>
     /// Qwen servers normally answer with a 24 kHz WAV. A few builds ignore
     /// <c>response_format</c> and stream raw 16-bit mono PCM, so both are accepted.
-    /// </summary>
     private static float[] Decode(byte[] audio)
     {
         if (audio.Length == 0)

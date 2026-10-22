@@ -1,9 +1,7 @@
 namespace SwyfCloudTts.Providers;
 
-/// <summary>
 /// Offline provider used by the protocol probe. It turns text into a deterministic
 /// "babble" so the pipe, chunking and timing can be tested without an API key.
-/// </summary>
 internal sealed class MockTts : ITtsProvider
 {
     public string Name => "mock";
@@ -55,7 +53,7 @@ internal sealed class MockTts : ITtsProvider
     }
 }
 
-/// <summary>Produces no audio at all; used when nothing is configured. The app pads silence.</summary>
+/// Produces no audio at all; used when nothing is configured. The app pads silence.
 internal sealed class SilentTts : ITtsProvider
 {
     public string Name => "silent";

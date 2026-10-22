@@ -4,7 +4,7 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 versions follow [Semantic Versioning](https://semver.org/).
 
-## [1.3.0] - Unreleased
+## [1.3.0] - 2026-10-22
 
 ### Added
 - `SWYF-CloudTTS-Setup.exe`: one-file installer with Install / Repair / Update / Uninstall, an
@@ -47,6 +47,9 @@ versions follow [Semantic Versioning](https://semver.org/).
   in-game card and the setup replace them.
 
 ### Fixed
+- Game 0.1.83 only uses Qwen with a 5.5 GB NVIDIA/AMD card and 15 GB of RAM; on other PCs every line
+  went to its local MOSS voice and the cloud was never asked. The plugin now redirects that check in
+  memory for cloud providers (the game's files stay untouched, `passthrough` keeps the game's check).
 - **Test voice** in the game generated audio but could not play it
   (`Method not found: BitConverter.ToSingle`).
 - A diagnostic path in the plugin used `Stack<T>`, which the game does not ship.
