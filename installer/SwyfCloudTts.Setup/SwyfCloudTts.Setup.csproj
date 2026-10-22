@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    .NET Framework 4.8 ships with Windows 10 and 11, so the setup needs no runtime download.
+    Everything it installs is embedded, which makes the release a single file.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AssemblyName>SWYF-CloudTTS-Setup</AssemblyName>
+    <RootNamespace>SwyfCloudTts.Setup</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <Product>SWYF Cloud TTS Setup</Product>
+    <Description>Installs SWYF Cloud TTS into Scam With Your Friends</Description>
+    <DebugType>none</DebugType>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <RepoRoot>$(MSBuildThisFileDirectory)..\..\</RepoRoot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="$(RepoRoot)dist\QwenTtsWorker.exe" LogicalName="payload/QwenTtsWorker.exe" />
+    <EmbeddedResource Include="$(RepoRoot)plugin\dist\SwyfCloudTts.Boot.dll" LogicalName="payload/SwyfCloudTts.Boot.dll" />
+    <EmbeddedResource Include="$(RepoRoot)plugin\dist\SwyfCloudTts.Plugin.dll" LogicalName="payload/SwyfCloudTts.Plugin.dll" />
+    <EmbeddedResource Include="$(RepoRoot)third_party\UnityDoorstop\winhttp.dll" LogicalName="payload/winhttp.dll" />
+    <EmbeddedResource Include="$(RepoRoot)third_party\UnityDoorstop\.doorstop_version" LogicalName="payload/.doorstop_version" />
+  </ItemGroup>
+
+  <Target Name="CheckPayload" BeforeTargets="PrepareForBuild">
+    <Error Condition="!Exists('$(RepoRoot)dist\QwenTtsWorker.exe')" Text="Worker not built. Run .\build.ps1 first." />
+    <Error Condition="!Exists('$(RepoRoot)plugin\dist\SwyfCloudTts.Plugin.dll')" Text="Plugin not built. Run .\build.ps1 first." />
+  </Target>
+
+</Project>

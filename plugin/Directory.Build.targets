@@ -1,0 +1,25 @@
+<Project>
+  <!--
+    Both assemblies run inside the game, which ships a stripped mscorlib. Compiling against the
+    game's own BCL turns any API the game lacks into a build error instead of a
+    MissingMethodException (or a black screen) at runtime.
+  -->
+  <PropertyGroup>
+    <GameDir Condition="'$(GameDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Scam With Your Friends</GameDir>
+    <ManagedDir>$(GameDir)\Scam With Your Friends_Data\Managed</ManagedDir>
+    <NoStdLib>true</NoStdLib>
+    <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="$(ManagedDir)\mscorlib.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\System.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\System.Core.dll" Private="false" />
+  </ItemGroup>
+
+  <Target Name="CheckGameReferences" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(ManagedDir)\UnityEngine.CoreModule.dll')"
+           Text="Game assemblies not found under $(ManagedDir). Pass /p:GameDir=&quot;X:\path\to\Scam With Your Friends&quot;." />
+  </Target>
+</Project>

@@ -1,0 +1,50 @@
+name: 🐞 Bug report
+description: Something does not work (silence, crash, black screen, wrong voice)
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report! English, Ukrainian or Russian are all fine.
+        **Never paste your API key.** The logs below do not contain it.
+  - type: input
+    id: version
+    attributes:
+      label: Mod version
+      description: Shown in the setup window title, e.g. 1.3.0
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider
+      options: [Google AI (Gemini), OpenAI, ElevenLabs, Qwen3-TTS (own GPU), mock / silent / passthrough]
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where does it happen?
+      options: [Setup (install, repair, uninstall), Characters are silent, Wrong or broken voice, In-game card (Settings → Speech), Black screen / game crash, Other]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, what you got instead.
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: worker.log
+      description: Last ~50 lines of `%LOCALAPPDATA%\SWYF-CloudTTS\worker.log` (and `boot.log` for black screens).
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I opened the setup after the last game update and it says "Installed"
+        - label: I tried **Test voice** in Settings → Speech → CLOUD TTS

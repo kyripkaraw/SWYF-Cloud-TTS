@@ -1,0 +1,28 @@
+# Build output
+bin/
+obj/
+dist/
+artifacts/
+*.user
+.vs/
+
+# Release builds are published on GitHub Releases, not committed
+*.zip
+
+# Decompiled game code: copyrighted, never publish
+analysis/
+
+# Local BepInEx experiments; the Doorstop files the setup needs are in third_party/
+tools/bepinex/
+
+# Local test output and tooling noise
+*.wav
+!docs/**/*.wav
+fake_*_requests.jsonl
+.playwright-mcp/
+__pycache__/
+
+# Runtime state that may contain secrets
+panel.token
+cloud-tts.config.json
+voices.json

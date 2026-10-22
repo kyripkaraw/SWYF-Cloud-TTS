@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📖 Full guide (providers, config, troubleshooting)
+    url: https://github.com/kyripkaraw/swyf-cloud-tts/blob/main/docs/GUIDE.uk.md
+    about: Most setup questions are answered here.

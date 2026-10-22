@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  worker:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      # build.ps1 also builds the in-game card, which needs the game's assemblies.
+      - name: Build worker
+        shell: pwsh
+        run: dotnet publish src/QwenTtsCloud/QwenTtsCloud.csproj -c Release -o dist --nologo
+
+      - name: Version matches Directory.Build.props
+        shell: pwsh
+        run: |
+          $built = ./dist/QwenTtsWorker.exe --version
+          $expected = ([xml](Get-Content -Raw Directory.Build.props)).Project.PropertyGroup.Version
+          if ($built -ne $expected) { throw "worker reports $built, Directory.Build.props says $expected" }
+
+      - name: Smoke test (mock provider)
+        shell: pwsh
+        run: ./dist/QwenTtsWorker.exe --test --provider mock --text "CI smoke test" --out smoke.wav
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: QwenTtsWorker
+          path: dist/QwenTtsWorker.exe
+          retention-days: 14
