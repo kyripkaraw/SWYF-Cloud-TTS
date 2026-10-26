@@ -11,7 +11,7 @@ versions follow [Semantic Versioning](https://semver.org/).
   installs. It speaks in the game's own process through Harmony hooks on the game's Qwen client,
   so there is no `QwenTtsWorker.exe` and no worker started per line. The game's GPU check, the
   worker checksum and the 1.3 GB Qwen model download are skipped while a cloud provider is chosen.
-  Built by `pluginuild-bepinex.ps1`, which also packs the release zip.
+  Built by `plugin\build-bepinex.ps1`, which also packs the release zip.
 - The log records how long each line waited for its first audio.
 
 ### Changed
