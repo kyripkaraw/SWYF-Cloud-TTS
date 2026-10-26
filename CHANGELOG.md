@@ -4,7 +4,7 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 versions follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.4.0] - 2026-10-26
 
 ### Added
 - `SwyfCloudTts.dll`: the whole mod as one BepInEx 5 plugin, for Switchboard and other BepInEx

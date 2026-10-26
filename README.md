@@ -44,6 +44,16 @@
 > [!NOTE]
 > Windows SmartScreen may warn about an unknown publisher: *More info → Run anyway*. The sources and build scripts are in this repository.
 
+### Or with Switchboard (BepInEx)
+
+The mod is also a single BepInEx 5 plugin, **`SwyfCloudTts.dll`**, for the community mod manager [Switchboard](https://switchboard.ras-rap.click/). It speaks inside the game itself: no worker process, no game files replaced, and the game's own Qwen model is never downloaded.
+
+1. Install BepInEx with Switchboard (*Setup → Set up / repair*).
+2. Install the mod from *Get mods*, or put `SwyfCloudTts.dll` from **`SWYF-CloudTTS-BepInEx-vX.Y.Z.zip`** into `BepInEx\plugins`.
+3. Settings are the same card: **Settings → Speech → CLOUD TTS**.
+
+Use one of the two, not both: uninstall the setup version (settings stay) before installing BepInEx, because both load through `winhttp.dll`.
+
 ## Providers
 
 | Provider | Good for | Cost |
@@ -94,6 +104,7 @@ Requires the .NET 8 SDK and the game installed (the in-game card compiles agains
 ```powershell
 .\build.ps1      # worker, in-game card and setup -> dist\
 .\release.ps1    # version checks and smoke test -> artifacts\SWYF-CloudTTS-Setup-vX.Y.Z.exe
+.\plugin\build-bepinex.ps1   # BepInEx plugin -> artifacts\SWYF-CloudTTS-BepInEx-vX.Y.Z.zip
 ```
 
 How it works, the config format and the worker protocol: [docs/GUIDE.uk.md](docs/GUIDE.uk.md). Plans: [docs/ROADMAP.md](docs/ROADMAP.md).

@@ -44,6 +44,16 @@
 > [!NOTE]
 > Windows SmartScreen может предупредить о неизвестном издателе: *Подробнее → Выполнить в любом случае*. Исходный код и скрипты сборки — в этом репозитории.
 
+### Или через Switchboard (BepInEx)
+
+Мод также собран как один плагин BepInEx 5, **`SwyfCloudTts.dll`**, для менеджера модов сообщества [Switchboard](https://switchboard.ras-rap.click/). Он говорит прямо внутри игры: без отдельного процесса, без замены файлов игры, а собственная модель Qwen игры вообще не скачивается.
+
+1. Установите BepInEx через Switchboard (*Setup → Set up / repair*).
+2. Установите мод в *Get mods* или положите `SwyfCloudTts.dll` из **`SWYF-CloudTTS-BepInEx-vX.Y.Z.zip`** в `BepInEx\plugins`.
+3. Настройки — та же карточка: **Settings → Speech → CLOUD TTS**.
+
+Используйте что-то одно: перед установкой BepInEx удалите версию из установщика (настройки останутся), потому что обе загружаются через `winhttp.dll`.
+
 ## Провайдеры
 
 | Провайдер | Для чего | Стоимость |
@@ -95,6 +105,7 @@ API-ключи: [Google AI Studio](https://aistudio.google.com/apikey) · [OpenA
 ```powershell
 .\build.ps1      # воркер, карточка в игре и установщик -> dist\
 .\release.ps1    # проверка версий и smoke-тест -> artifacts\SWYF-CloudTTS-Setup-vX.Y.Z.exe
+.\plugin\build-bepinex.ps1   # плагин BepInEx -> artifacts\SWYF-CloudTTS-BepInEx-vX.Y.Z.zip
 ```
 
 Как это работает, формат конфига и протокол воркера: [docs/GUIDE.uk.md](docs/GUIDE.uk.md). Планы: [docs/ROADMAP.md](docs/ROADMAP.md).
