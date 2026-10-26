@@ -1,5 +1,5 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace SwyfCloudTts;
 
@@ -10,31 +10,31 @@ internal sealed class Config
     public static readonly string Version =
         typeof(Config).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
 
-    [JsonPropertyName("provider")]
+    [JsonProperty("provider")]
     public string Provider { get; set; } = "googleai";
 
-    [JsonPropertyName("openai")]
+    [JsonProperty("openai")]
     public OpenAiConfig OpenAi { get; set; } = new();
 
-    [JsonPropertyName("elevenlabs")]
+    [JsonProperty("elevenlabs")]
     public ElevenLabsConfig ElevenLabs { get; set; } = new();
 
-    [JsonPropertyName("googleai")]
+    [JsonProperty("googleai")]
     public GoogleAiConfig GoogleAi { get; set; } = new();
 
-    [JsonPropertyName("qwenremote")]
+    [JsonProperty("qwenremote")]
     public QwenRemoteConfig QwenRemote { get; set; } = new();
 
-    [JsonPropertyName("cache")]
+    [JsonProperty("cache")]
     public CacheConfig Cache { get; set; } = new();
 
-    [JsonPropertyName("fallback")]
+    [JsonProperty("fallback")]
     public FallbackConfig Fallback { get; set; } = new();
 
-    [JsonPropertyName("network")]
+    [JsonProperty("network")]
     public NetworkConfig Network { get; set; } = new();
 
-    [JsonPropertyName("logging")]
+    [JsonProperty("logging")]
     public LoggingConfig Logging { get; set; } = new();
 
     /// Path this configuration was read from (not serialized).
@@ -74,6 +74,8 @@ internal sealed class Config
     /// Versions before 1.2 kept the config next to the worker inside the game folder.
     private static void MigrateLegacyConfig()
     {
+#if !NETFRAMEWORK
+        // The in-game plugin never shipped a config of its own.
         string legacy = System.IO.Path.Combine(AppContext.BaseDirectory, FileName);
         try
         {
@@ -87,6 +89,7 @@ internal sealed class Config
         {
             Log.Warn($"cannot migrate {legacy}: {ex.Message}");
         }
+#endif
     }
 
     public static Config Load(string? explicitPath = null)
@@ -99,7 +102,7 @@ internal sealed class Config
             try
             {
                 string json = File.ReadAllText(path);
-                config = JsonSerializer.Deserialize<Config>(json, SerializerOptions) ?? new Config();
+                config = FromJson<Config>(json) ?? new Config();
             }
             catch (Exception ex)
             {
@@ -118,7 +121,7 @@ internal sealed class Config
                     Directory.CreateDirectory(directory);
                 }
 
-                File.WriteAllText(path, JsonSerializer.Serialize(config, SerializerOptions));
+                File.WriteAllText(path, ToJson(config));
                 Log.Info($"wrote default config to {path}");
             }
             catch (Exception ex)
@@ -153,50 +156,86 @@ internal sealed class Config
     private static string FirstNonEmpty(string? first, string? second)
         => !string.IsNullOrWhiteSpace(first) ? first! : (second ?? "");
 
-    public static readonly JsonSerializerOptions SerializerOptions = new()
+    /// Every state file goes through these two. Property names come from the attributes, and
+    /// reading is case-insensitive and skips comments, so hand-edited files keep working. Only
+    /// the plainest JsonConvert overloads are used: the game's Newtonsoft is stripped of the rest.
+    public static string ToJson(object value)
     {
-        WriteIndented = true,
-        PropertyNameCaseInsensitive = true,
-        ReadCommentHandling = JsonCommentHandling.Skip,
-        AllowTrailingCommas = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-    };
+        // Unset optional values are left out, as earlier versions wrote them.
+        JToken token = ParseJson(JsonConvert.SerializeObject(value));
+        DropNulls(token);
+        return token.ToString(Formatting.Indented);
+    }
+
+    /// Dates stay strings, exactly as written.
+    public static JToken ParseJson(string json)
+    {
+        using var reader = new JsonTextReader(new StringReader(json)) { DateParseHandling = DateParseHandling.None };
+        return JToken.ReadFrom(reader);
+    }
+
+    private static void DropNulls(JToken token)
+    {
+        if (token is JObject obj)
+        {
+            foreach (JProperty property in obj.Properties().ToList())
+            {
+                if (property.Value.Type == JTokenType.Null)
+                {
+                    property.Remove();
+                }
+                else
+                {
+                    DropNulls(property.Value);
+                }
+            }
+        }
+        else if (token is JArray array)
+        {
+            foreach (JToken item in array)
+            {
+                DropNulls(item);
+            }
+        }
+    }
+
+    public static T? FromJson<T>(string json) where T : class => JsonConvert.DeserializeObject<T>(json);
 
     internal sealed class OpenAiConfig
     {
-        [JsonPropertyName("apiKey")] public string ApiKey { get; set; } = "";
-        [JsonPropertyName("baseUrl")] public string BaseUrl { get; set; } = "https://api.openai.com/v1";
-        [JsonPropertyName("model")] public string Model { get; set; } = "gpt-4o-mini-tts";
-        [JsonPropertyName("voice")] public string? Voice { get; set; }
-        [JsonPropertyName("instructions")] public string? Instructions { get; set; }
-        [JsonPropertyName("speed")] public double? Speed { get; set; }
+        [JsonProperty("apiKey")] public string ApiKey { get; set; } = "";
+        [JsonProperty("baseUrl")] public string BaseUrl { get; set; } = "https://api.openai.com/v1";
+        [JsonProperty("model")] public string Model { get; set; } = "gpt-4o-mini-tts";
+        [JsonProperty("voice")] public string? Voice { get; set; }
+        [JsonProperty("instructions")] public string? Instructions { get; set; }
+        [JsonProperty("speed")] public double? Speed { get; set; }
     }
 
     internal sealed class ElevenLabsConfig
     {
-        [JsonPropertyName("apiKey")] public string ApiKey { get; set; } = "";
-        [JsonPropertyName("baseUrl")] public string BaseUrl { get; set; } = "https://api.elevenlabs.io/v1";
-        [JsonPropertyName("modelId")] public string ModelId { get; set; } = "eleven_v4_turbo";
-        [JsonPropertyName("autoClone")] public bool AutoClone { get; set; } = true;
+        [JsonProperty("apiKey")] public string ApiKey { get; set; } = "";
+        [JsonProperty("baseUrl")] public string BaseUrl { get; set; } = "https://api.elevenlabs.io/v1";
+        [JsonProperty("modelId")] public string ModelId { get; set; } = "eleven_v4_turbo";
+        [JsonProperty("autoClone")] public bool AutoClone { get; set; } = true;
 
         /// Global voice; empty picks a default ElevenLabs voice per character.
-        [JsonPropertyName("defaultVoiceId")] public string DefaultVoiceId { get; set; } = "";
+        [JsonProperty("defaultVoiceId")] public string DefaultVoiceId { get; set; } = "";
 
         /// Monthly voice additions the mod leaves unused, for the player's own voices.
-        [JsonPropertyName("reserveVoiceEdits")] public int ReserveVoiceEdits { get; set; } = 5;
+        [JsonProperty("reserveVoiceEdits")] public int ReserveVoiceEdits { get; set; } = 5;
 
-        [JsonPropertyName("stability")] public double Stability { get; set; } = 0.5;
-        [JsonPropertyName("similarityBoost")] public double SimilarityBoost { get; set; } = 0.8;
+        [JsonProperty("stability")] public double Stability { get; set; } = 0.5;
+        [JsonProperty("similarityBoost")] public double SimilarityBoost { get; set; } = 0.8;
     }
 
     /// Google AI Studio (Gemini TTS), not Google Cloud TTS.
     internal sealed class GoogleAiConfig
     {
-        [JsonPropertyName("apiKey")] public string ApiKey { get; set; } = "";
-        [JsonPropertyName("baseUrl")] public string BaseUrl { get; set; } = "https://generativelanguage.googleapis.com/v1beta";
-        [JsonPropertyName("model")] public string Model { get; set; } = "gemini-3.8-flash-tts";
-        [JsonPropertyName("voiceId")] public string VoiceId { get; set; } = "";
-        [JsonPropertyName("style")] public string Style { get; set; } = "natural, conversational";
+        [JsonProperty("apiKey")] public string ApiKey { get; set; } = "";
+        [JsonProperty("baseUrl")] public string BaseUrl { get; set; } = "https://generativelanguage.googleapis.com/v1beta";
+        [JsonProperty("model")] public string Model { get; set; } = "gemini-3.8-flash-tts";
+        [JsonProperty("voiceId")] public string VoiceId { get; set; } = "";
+        [JsonProperty("style")] public string Style { get; set; } = "natural, conversational";
     }
 
     /// Self-hosted Qwen3-TTS on a rented GPU (or any OpenAI-compatible TTS server such as
@@ -206,55 +245,55 @@ internal sealed class Config
     internal sealed class QwenRemoteConfig
     {
         /// Server root, for example http://1.2.3.4:8000. A trailing /v1 is accepted.
-        [JsonPropertyName("baseUrl")] public string BaseUrl { get; set; } = "http://127.0.0.1:8000";
+        [JsonProperty("baseUrl")] public string BaseUrl { get; set; } = "http://127.0.0.1:8000";
 
         /// Optional bearer token (RunPod proxy, reverse proxy, or a custom gateway).
-        [JsonPropertyName("apiKey")] public string ApiKey { get; set; } = "";
+        [JsonProperty("apiKey")] public string ApiKey { get; set; } = "";
 
         /// "clone" (per-character reference audio), "voice" (named voice on the server)
         /// or "design" (POST /tts with a voice description).
-        [JsonPropertyName("mode")] public string Mode { get; set; } = "clone";
+        [JsonProperty("mode")] public string Mode { get; set; } = "clone";
 
-        [JsonPropertyName("model")] public string Model { get; set; } = "tts-1";
+        [JsonProperty("model")] public string Model { get; set; } = "tts-1";
 
         /// Server-side voice name for "voice" mode; also used if cloning is unavailable.
-        [JsonPropertyName("voice")] public string Voice { get; set; } = "";
+        [JsonProperty("voice")] public string Voice { get; set; } = "";
 
         /// "auto" follows the language the game asks for; otherwise a Qwen3-TTS language name.
-        [JsonPropertyName("language")] public string Language { get; set; } = "auto";
+        [JsonProperty("language")] public string Language { get; set; } = "auto";
 
         /// Optional style instruction (CustomVoice / VoiceDesign models).
-        [JsonPropertyName("instruct")] public string? Instruct { get; set; }
+        [JsonProperty("instruct")] public string? Instruct { get; set; }
     }
 
     internal sealed class CacheConfig
     {
-        [JsonPropertyName("enabled")] public bool Enabled { get; set; } = true;
-        [JsonPropertyName("maxMegabytes")] public int MaxMegabytes { get; set; } = 512;
+        [JsonProperty("enabled")] public bool Enabled { get; set; } = true;
+        [JsonProperty("maxMegabytes")] public int MaxMegabytes { get; set; } = 512;
 
         /// The settings card drops cached audio when voices or the provider change.
-        [JsonPropertyName("clearOnVoiceChange")] public bool ClearOnVoiceChange { get; set; } = true;
+        [JsonProperty("clearOnVoiceChange")] public bool ClearOnVoiceChange { get; set; } = true;
     }
 
     internal sealed class NetworkConfig
     {
         /// Seconds without audio before a request is retried. The first audio of a line has 15 s in total.
-        [JsonPropertyName("timeoutSeconds")] public int TimeoutSeconds { get; set; } = 12;
+        [JsonProperty("timeoutSeconds")] public int TimeoutSeconds { get; set; } = 12;
 
         /// Total attempts per request (1 = no retry).
-        [JsonPropertyName("maxAttempts")] public int MaxAttempts { get; set; } = 2;
+        [JsonProperty("maxAttempts")] public int MaxAttempts { get; set; } = 2;
     }
 
     internal sealed class FallbackConfig
     {
         /// Off by default: the local model needs most of the game's 20 s first-audio limit just to
         /// load, so it is only tried when the cloud fails within a few seconds.
-        [JsonPropertyName("passthrough")] public bool Passthrough { get; set; }
-        [JsonPropertyName("originalExe")] public string OriginalExe { get; set; } = "QwenTtsWorker.orig.exe";
+        [JsonProperty("passthrough")] public bool Passthrough { get; set; }
+        [JsonProperty("originalExe")] public string OriginalExe { get; set; } = "QwenTtsWorker.orig.exe";
     }
 
     internal sealed class LoggingConfig
     {
-        [JsonPropertyName("verbose")] public bool Verbose { get; set; }
+        [JsonProperty("verbose")] public bool Verbose { get; set; }
     }
 }

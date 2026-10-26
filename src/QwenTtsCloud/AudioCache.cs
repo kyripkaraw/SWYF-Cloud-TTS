@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using System.Text;
 
 namespace SwyfCloudTts;
@@ -39,9 +38,8 @@ internal sealed class AudioCache
     public static string Key(params string?[] parts)
     {
         // Unit separator cannot appear in text/voice ids, so the key stays unambiguous.
-        string joined = string.Join('\u001f', parts.Select(p => p ?? ""));
-        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(joined));
-        return Convert.ToHexString(hash).ToLowerInvariant();
+        string joined = string.Join("\u001f", parts.Select(p => p ?? ""));
+        return Compat.Sha256Hex(Encoding.UTF8.GetBytes(joined));
     }
 
     public bool TryGet(string key, out byte[] samples)
@@ -93,7 +91,7 @@ internal sealed class AudioCache
                 string path = PathFor(key);
                 string temp = path + ".tmp";
                 File.WriteAllBytes(temp, samples);
-                File.Move(temp, path, overwrite: true);
+                Compat.MoveOverwrite(temp, path);
                 Prune();
             }
             catch (Exception ex)

@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Headers;
 
 namespace SwyfCloudTts.Providers;
 
@@ -85,7 +84,7 @@ internal sealed class QwenRemoteTts : HttpTtsProvider
             for (int offset = 0; offset < samples.Length; offset += chunk)
             {
                 int length = Math.Min(chunk, samples.Length - offset);
-                emit(samples.AsSpan(offset, length).ToArray());
+                emit(Compat.Slice(samples, offset, length));
             }
         }, token);
     }
@@ -94,12 +93,12 @@ internal sealed class QwenRemoteTts : HttpTtsProvider
         => !DesignMode && !VoiceMode && !_cloneUnavailable && request.Reference.Length >= MinCloneSamples;
 
     /// True for servers that have no clone endpoint, or that reject the reference clip.
-    private static bool IsCloneRejected(HttpRequestException ex) => ex.StatusCode is
+    private static bool IsCloneRejected(HttpFailure ex) => ex.StatusCode is
         HttpStatusCode.BadRequest or
         HttpStatusCode.NotFound or
         HttpStatusCode.MethodNotAllowed or
         HttpStatusCode.UnsupportedMediaType or
-        HttpStatusCode.UnprocessableEntity;
+        HttpStatus.UnprocessableEntity;
 
     private async Task<byte[]> RequestAsync(SpeechRequest request, CancellationToken token)
     {
@@ -116,7 +115,7 @@ internal sealed class QwenRemoteTts : HttpTtsProvider
                 {
                     return await RequestCloneAsync(request, token).ConfigureAwait(false);
                 }
-                catch (HttpRequestException ex) when (IsCloneRejected(ex) && ResolveVoice(request.Voice).Length > 0)
+                catch (HttpFailure ex) when (IsCloneRejected(ex) && ResolveVoice(request.Voice).Length > 0)
                 {
                     _cloneUnavailable = true;
                     Log.Warn($"{Name}: cloning is not available on this server ({ex.Message}); " +
@@ -126,7 +125,7 @@ internal sealed class QwenRemoteTts : HttpTtsProvider
 
             return await RequestVoiceAsync(request, token).ConfigureAwait(false);
         }
-        catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed)
+        catch (HttpFailure ex) when (ex.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed)
         {
             // Some self-hosted wrappers expose only POST /tts. Try it once and remember it,
             // so later lines skip the failing request.
@@ -138,12 +137,12 @@ internal sealed class QwenRemoteTts : HttpTtsProvider
                 Log.Info($"{Name}: using the server's /tts VoiceDesign endpoint");
                 return audio;
             }
-            catch (HttpRequestException ttsEx)
+            catch (HttpFailure ttsEx)
             {
                 TryRoot(out string root);
-                throw new HttpRequestException(
+                throw new HttpFailure(
                     $"{Name}: neither /v1/audio/speech nor /tts exists on {root} ({ttsEx.Message}); " +
-                    "check the server URL and port", ttsEx);
+                    "check the server URL and port", ttsEx.StatusCode, ttsEx);
             }
         }
     }
@@ -162,48 +161,37 @@ internal sealed class QwenRemoteTts : HttpTtsProvider
             payload["language"] = language;
         }
 
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, RootEndpoint("/tts"))
-        {
-            Content = Json(payload),
-        };
+        HttpCall httpRequest = HttpCall.PostJson(RootEndpoint("/tts"), payload);
 
         // The reference wrapper checks X-API-Key; a proxy in front of it may want Bearer as well.
         string key = (_config.ApiKey ?? "").Trim();
         if (key.Length > 0)
         {
-            httpRequest.Headers.TryAddWithoutValidation("X-API-Key", key);
-            httpRequest.Headers.Authorization = Bearer(key);
+            httpRequest.Header("X-API-Key", key).Bearer(key);
         }
 
-        using HttpResponseMessage response = await SendQwenAsync(httpRequest, token).ConfigureAwait(false);
-        return await response.Content.ReadAsByteArrayAsync(token).ConfigureAwait(false);
+        using HttpReply response = await SendQwenAsync(httpRequest, token).ConfigureAwait(false);
+        return await response.ReadBytesAsync(token).ConfigureAwait(false);
     }
 
     private async Task<byte[]> RequestCloneAsync(SpeechRequest request, CancellationToken token)
     {
-        using var form = new MultipartFormDataContent();
-        form.Add(new StringContent(request.Text), "text");
-
-        var reference = new ByteArrayContent(Pcm.ToWav(request.Reference));
-        reference.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
-        form.Add(reference, "reference_audio", "reference.wav");
-
-        form.Add(new StringContent("wav"), "response_format");
+        var form = new MultipartForm()
+            .Text("text", request.Text)
+            .File("reference_audio", "reference.wav", "audio/wav", Pcm.ToWav(request.Reference))
+            .Text("response_format", "wav");
 
         string language = ResolveLanguage(request);
         if (language.Length > 0)
         {
-            form.Add(new StringContent(language), "language");
+            form.Text("language", language);
         }
 
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, Endpoint("/audio/speech/clone"))
-        {
-            Content = form,
-        };
+        HttpCall httpRequest = HttpCall.PostForm(Endpoint("/audio/speech/clone"), form);
         AddAuth(httpRequest);
 
-        using HttpResponseMessage response = await SendQwenAsync(httpRequest, token).ConfigureAwait(false);
-        return await response.Content.ReadAsByteArrayAsync(token).ConfigureAwait(false);
+        using HttpReply response = await SendQwenAsync(httpRequest, token).ConfigureAwait(false);
+        return await response.ReadBytesAsync(token).ConfigureAwait(false);
     }
 
     private async Task<byte[]> RequestVoiceAsync(SpeechRequest request, CancellationToken token)
@@ -232,39 +220,36 @@ internal sealed class QwenRemoteTts : HttpTtsProvider
             payload["instruct"] = _config.Instruct;
         }
 
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, Endpoint("/audio/speech"))
-        {
-            Content = Json(payload),
-        };
+        HttpCall httpRequest = HttpCall.PostJson(Endpoint("/audio/speech"), payload);
         AddAuth(httpRequest);
 
-        using HttpResponseMessage response = await SendQwenAsync(httpRequest, token).ConfigureAwait(false);
-        return await response.Content.ReadAsByteArrayAsync(token).ConfigureAwait(false);
+        using HttpReply response = await SendQwenAsync(httpRequest, token).ConfigureAwait(false);
+        return await response.ReadBytesAsync(token).ConfigureAwait(false);
     }
 
     /// A wrong URL or a stopped pod is the most common failure for a self-hosted server, and the
     /// stock SocketException text does not say what to check. Status failures keep their own text.
-    private async Task<HttpResponseMessage> SendQwenAsync(HttpRequestMessage request, CancellationToken token)
+    private async Task<HttpReply> SendQwenAsync(HttpCall request, CancellationToken token)
     {
         try
         {
             return await SendAsync(request, token).ConfigureAwait(false);
         }
-        catch (HttpRequestException ex) when (ex.StatusCode is null)
+        catch (HttpFailure ex) when (ex.StatusCode is null)
         {
             TryRoot(out string root);
-            throw new HttpRequestException(
+            throw new HttpFailure(
                 $"{Name}: cannot reach {root} ({ex.Message}) | check that the pod is running, the URL is " +
-                "correct and the API port (usually 8000) is exposed", ex);
+                "correct and the API port (usually 8000) is exposed", null, ex);
         }
     }
 
-    private void AddAuth(HttpRequestMessage request)
+    private void AddAuth(HttpCall request)
     {
         string key = (_config.ApiKey ?? "").Trim();
         if (key.Length > 0)
         {
-            request.Headers.Authorization = Bearer(key);
+            request.Bearer(key);
         }
     }
 
@@ -275,7 +260,7 @@ internal sealed class QwenRemoteTts : HttpTtsProvider
         root = (_config.BaseUrl ?? "").Trim().TrimEnd('/');
         if (root.EndsWith("/v1", StringComparison.OrdinalIgnoreCase))
         {
-            root = root[..^3].TrimEnd('/');
+            root = root.Substring(0, root.Length - 3).TrimEnd('/');
         }
 
         return Uri.TryCreate(root, UriKind.Absolute, out Uri? uri) &&
@@ -351,7 +336,7 @@ internal sealed class QwenRemoteTts : HttpTtsProvider
         }
 
         var converter = new Pcm.S16ToFloat();
-        float[] head = converter.Push(audio);
+        float[] head = converter.Push(audio, 0, audio.Length);
         float[] tail = converter.Flush();
         if (tail.Length == 0)
         {

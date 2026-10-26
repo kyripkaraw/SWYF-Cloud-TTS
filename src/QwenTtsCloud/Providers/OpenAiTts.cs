@@ -44,15 +44,10 @@ internal sealed class OpenAiTts : HttpTtsProvider
                 payload["instructions"] = _config.Instructions!;
             }
 
-            using var httpRequest = new HttpRequestMessage(
-                HttpMethod.Post, _config.BaseUrl.TrimEnd('/') + "/audio/speech")
-            {
-                Content = Json(payload),
-            };
+            HttpCall httpRequest = HttpCall.PostJson(_config.BaseUrl.TrimEnd('/') + "/audio/speech", payload)
+                .Bearer(_config.ApiKey);
 
-            httpRequest.Headers.Authorization = Bearer(_config.ApiKey);
-
-            using HttpResponseMessage response = await SendAsync(httpRequest, ct).ConfigureAwait(false);
+            using HttpReply response = await SendAsync(httpRequest, ct).ConfigureAwait(false);
             await StreamPcmAsync(response, emit, ct).ConfigureAwait(false);
         }, token);
     }

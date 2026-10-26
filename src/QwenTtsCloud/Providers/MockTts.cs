@@ -13,7 +13,7 @@ internal sealed class MockTts : ITtsProvider
     public async Task SpeakAsync(SpeechRequest request, Action<float[]> onSamples, CancellationToken token)
     {
         double baseHz = request.Voice.PitchHz > 0
-            ? Math.Clamp(request.Voice.PitchHz, 80, 300)
+            ? Math.Max(80, Math.Min(300, request.Voice.PitchHz))
             : (request.Voice.Gender == "male" ? 120 : 205);
 
         int seed = 17;

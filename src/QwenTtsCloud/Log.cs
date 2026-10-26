@@ -17,7 +17,7 @@ internal static class Log
                 _path = Path.Combine(directory, "worker.log");
                 if (File.Exists(_path) && new FileInfo(_path).Length > 4 * 1024 * 1024)
                 {
-                    File.Move(_path, _path + ".old", overwrite: true);
+                    Compat.MoveOverwrite(_path, _path + ".old");
                 }
             }
         }

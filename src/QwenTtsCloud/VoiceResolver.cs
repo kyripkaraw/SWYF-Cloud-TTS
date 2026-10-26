@@ -1,6 +1,5 @@
 using System.Globalization;
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using Newtonsoft.Json;
 
 namespace SwyfCloudTts;
 
@@ -12,24 +11,24 @@ internal sealed class VoiceEntry
     [JsonIgnore]
     public string Id { get; set; } = "";
 
-    [JsonPropertyName("label")] public string? Label { get; set; }
+    [JsonProperty("label")] public string? Label { get; set; }
 
-    [JsonPropertyName("gender")] public string Gender { get; set; } = "unknown";
+    [JsonProperty("gender")] public string Gender { get; set; } = "unknown";
 
-    [JsonPropertyName("pitchHz")] public double PitchHz { get; set; }
+    [JsonProperty("pitchHz")] public double PitchHz { get; set; }
 
-    [JsonPropertyName("firstSeen")] public DateTime FirstSeenUtc { get; set; } = DateTime.UtcNow;
+    [JsonProperty("firstSeen")] public DateTime FirstSeenUtc { get; set; } = DateTime.UtcNow;
 
     /// Explicit choices only: provider name -> provider specific voice id.
-    [JsonPropertyName("voices")] public Dictionary<string, string> Voices { get; set; } = new();
+    [JsonProperty("voices")] public Dictionary<string, string> Voices { get; set; } = new();
 
     /// Set in the settings card: the ElevenLabs clone of this character is never rotated out.
-    [JsonPropertyName("keepClone")] public bool? KeepClone { get; set; }
+    [JsonProperty("keepClone")] public bool? KeepClone { get; set; }
 }
 
 internal sealed class VoiceBook
 {
-    [JsonPropertyName("speakers")] public Dictionary<string, VoiceEntry> Speakers { get; set; } = new();
+    [JsonProperty("speakers")] public Dictionary<string, VoiceEntry> Speakers { get; set; } = new();
 }
 
 /// Turns the per-request reference audio into a stable speaker id and a cloud voice.
@@ -265,13 +264,12 @@ internal sealed class VoiceResolver
         {
             if (File.Exists(path))
             {
-                VoiceBook? book = JsonSerializer.Deserialize<VoiceBook>(
-                    File.ReadAllText(path), Config.SerializerOptions);
+                VoiceBook? book = Config.FromJson<VoiceBook>(File.ReadAllText(path));
                 if (book != null)
                 {
-                    foreach ((string id, VoiceEntry entry) in book.Speakers)
+                    foreach (KeyValuePair<string, VoiceEntry> pair in book.Speakers)
                     {
-                        entry.Id = id;
+                        pair.Value.Id = pair.Key;
                     }
 
                     return book;
@@ -305,8 +303,8 @@ internal sealed class VoiceResolver
         {
             Directory.CreateDirectory(_stateDirectory);
             string temp = _bookPath + ".tmp";
-            File.WriteAllText(temp, JsonSerializer.Serialize(_book, Config.SerializerOptions));
-            File.Move(temp, _bookPath, overwrite: true);
+            File.WriteAllText(temp, Config.ToJson(_book));
+            Compat.MoveOverwrite(temp, _bookPath);
             _bookStamp = Stamp();
         }
         catch (Exception ex)

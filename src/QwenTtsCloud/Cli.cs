@@ -28,7 +28,7 @@ internal static class Cli
 
             if (arg.StartsWith(name + "=", StringComparison.OrdinalIgnoreCase))
             {
-                return arg[(name.Length + 1)..];
+                return arg.Substring(name.Length + 1);
             }
         }
 

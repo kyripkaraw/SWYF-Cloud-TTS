@@ -1,20 +1,19 @@
-using System.Buffers.Binary;
-
 namespace SwyfCloudTts;
 
-/// Writes float32 audio to the game in the exact frame format QwenWorkerClient expects:
-/// int32 marker 2, int32 sample count, count * float32 little-endian samples.
+/// Collects float32 audio into chunks of the size the game expects and hands each chunk to
+/// the output: the worker frames it for the pipe, the in-game plugin passes it straight to the
+/// game's own callback.
 internal sealed class SampleSink
 {
-    private readonly BinaryWriter _writer;
+    private readonly Action<float[]> _output;
     private readonly int _maxSamples;
     private readonly float[] _buffer;
     private readonly MemoryStream? _record;
     private int _buffered;
 
-    public SampleSink(BinaryWriter writer, int maxSamples, int chunkSamples = 4800, bool record = false)
+    public SampleSink(Action<float[]> output, int maxSamples, int chunkSamples = 4800, bool record = false)
     {
-        _writer = writer;
+        _output = output;
         _maxSamples = maxSamples;
         _buffer = new float[chunkSamples];
         _record = record ? new MemoryStream() : null;
@@ -26,7 +25,7 @@ internal sealed class SampleSink
 
     public byte[]? RecordedS16 => _record?.ToArray();
 
-    public void Add(ReadOnlySpan<float> samples)
+    public void Add(float[] samples)
     {
         foreach (float sample in samples)
         {
@@ -45,7 +44,7 @@ internal sealed class SampleSink
             return;
         }
 
-        float value = float.IsNaN(sample) || float.IsInfinity(sample) ? 0f : Math.Clamp(sample, -1f, 1f);
+        float value = float.IsNaN(sample) || float.IsInfinity(sample) ? 0f : Pcm.Clamp(sample);
         _buffer[_buffered++] = value;
         if (_buffered == _buffer.Length)
         {
@@ -71,29 +70,34 @@ internal sealed class SampleSink
     }
 
     /// Replays already encoded 16-bit audio (used by the disk cache) in protocol chunks.
-    public static int PumpS16(BinaryWriter writer, ReadOnlySpan<byte> s16, int maxSamples, int chunkSamples = 4800)
+    public static int PumpS16(byte[] s16, int maxSamples, Action<float[]> output, int chunkSamples = 4800)
     {
         int samples = Math.Min(s16.Length / 2, maxSamples);
         int written = 0;
         while (written < samples)
         {
             int count = Math.Min(chunkSamples, samples - written);
-            ReadOnlySpan<byte> chunk = s16.Slice(written * 2, count * 2);
             var floats = new float[count];
             for (int i = 0; i < count; i++)
             {
-                floats[i] = BinaryPrimitives.ReadInt16LittleEndian(chunk[(i * 2)..]) / 32768f;
+                floats[i] = Pcm.ReadInt16(s16, (written + i) * 2) / 32768f;
             }
 
-            writer.Write(2);
-            writer.Write(count);
-            writer.Write(Pcm.FloatToBytes(floats));
-            writer.Flush();
+            output(floats);
             written += count;
         }
 
         return written;
     }
+
+    /// The worker's pipe format: int32 marker 2, int32 sample count, count * float32 little-endian.
+    public static Action<float[]> Frames(BinaryWriter writer) => samples =>
+    {
+        writer.Write(2);
+        writer.Write(samples.Length);
+        writer.Write(Pcm.FloatToBytes(samples, samples.Length));
+        writer.Flush();
+    };
 
     private void Emit(int count)
     {
@@ -109,12 +113,13 @@ internal sealed class SampleSink
             return;
         }
 
-        _record?.Write(Pcm.FloatToS16(_buffer.AsSpan(0, allowed)));
+        if (_record != null)
+        {
+            byte[] s16 = Pcm.FloatToS16(_buffer, allowed);
+            _record.Write(s16, 0, s16.Length);
+        }
 
-        _writer.Write(2);
-        _writer.Write(allowed);
-        _writer.Write(Pcm.FloatToBytes(_buffer.AsSpan(0, allowed)));
-        _writer.Flush();
+        _output(Compat.Slice(_buffer, 0, allowed));
 
         Total += allowed;
 

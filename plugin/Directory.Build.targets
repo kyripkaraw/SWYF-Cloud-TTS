@@ -1,18 +1,25 @@
 <Project>
   <!--
-    Both assemblies run inside the game, which ships a stripped mscorlib. Compiling against the
-    game's own BCL turns any API the game lacks into a build error instead of a
+    The Doorstop build runs inside the game's own stripped mscorlib. Compiling it against the
+    game's BCL turns any API the game lacks into a build error instead of a
     MissingMethodException (or a black screen) at runtime.
+
+    The BepInEx plugin sets UseGameCorlib to false: the BepInEx setup puts the full Mono class
+    libraries in front of the game's copies, so it compiles against the ordinary .NET Framework
+    4.7.2 reference assemblies, which Mono implements. Unity and Newtonsoft still come from the game.
   -->
   <PropertyGroup>
     <GameDir Condition="'$(GameDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Scam With Your Friends</GameDir>
     <ManagedDir>$(GameDir)\Scam With Your Friends_Data\Managed</ManagedDir>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(UseGameCorlib)' != 'false'">
     <NoStdLib>true</NoStdLib>
     <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
   </PropertyGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="'$(UseGameCorlib)' != 'false'">
     <Reference Include="$(ManagedDir)\mscorlib.dll" Private="false" />
     <Reference Include="$(ManagedDir)\System.dll" Private="false" />
     <Reference Include="$(ManagedDir)\System.Core.dll" Private="false" />

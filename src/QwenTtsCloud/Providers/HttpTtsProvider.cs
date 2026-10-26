@@ -1,26 +1,18 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Text;
-using System.Text.Json;
 
 namespace SwyfCloudTts.Providers;
 
 /// Shared plumbing: JSON posts, streaming PCM reads, retry and timeout policy.
 internal abstract class HttpTtsProvider : ITtsProvider
 {
-    private static readonly HttpClient Http = new()
-    {
-        Timeout = Timeout.InfiniteTimeSpan,
-        DefaultRequestVersion = HttpVersion.Version11,
-    };
-
     private readonly int _timeoutSeconds;
     private readonly int _attempts;
 
     protected HttpTtsProvider(Config config)
     {
-        _timeoutSeconds = Math.Clamp(config.Network.TimeoutSeconds, 2, 60);
-        _attempts = Math.Clamp(config.Network.MaxAttempts, 1, 5);
+        _timeoutSeconds = Math.Max(2, Math.Min(60, config.Network.TimeoutSeconds));
+        _attempts = Math.Max(1, Math.Min(5, config.Network.MaxAttempts));
     }
 
     public abstract string Name { get; }
@@ -83,9 +75,9 @@ internal abstract class HttpTtsProvider : ITtsProvider
 
     protected static bool IsTransient(Exception ex) => ex switch
     {
-        HttpRequestException http => http.StatusCode is null
+        HttpFailure http => http.StatusCode is null
             or HttpStatusCode.RequestTimeout
-            or HttpStatusCode.TooManyRequests
+            or HttpStatus.TooManyRequests
             or HttpStatusCode.InternalServerError
             or HttpStatusCode.BadGateway
             or HttpStatusCode.ServiceUnavailable
@@ -95,21 +87,21 @@ internal abstract class HttpTtsProvider : ITtsProvider
     };
 
     /// Streams a raw 16-bit mono PCM response body, 24 kHz by contract of both APIs.
-    protected static async Task StreamPcmAsync(HttpResponseMessage response, Action<float[]> onSamples, CancellationToken token)
+    protected static async Task StreamPcmAsync(HttpReply response, Action<float[]> onSamples, CancellationToken token)
     {
-        await using Stream stream = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
+        Stream stream = response.Body;
         var converter = new Pcm.S16ToFloat();
         byte[] buffer = new byte[16 * 1024];
 
         while (true)
         {
-            int read = await stream.ReadAsync(buffer, token).ConfigureAwait(false);
+            int read = await stream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
             if (read <= 0)
             {
                 break;
             }
 
-            float[] samples = converter.Push(buffer.AsSpan(0, read));
+            float[] samples = converter.Push(buffer, 0, read);
             if (samples.Length > 0)
             {
                 onSamples(samples);
@@ -124,13 +116,10 @@ internal abstract class HttpTtsProvider : ITtsProvider
     }
 
     /// Forces a useful error message instead of "response status code does not indicate success".
-    protected async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+    protected async Task<HttpReply> SendAsync(HttpCall request, CancellationToken token)
     {
-        HttpResponseMessage response = await Http
-            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token)
-            .ConfigureAwait(false);
-
-        if (response.IsSuccessStatusCode)
+        HttpReply response = await HttpTransport.SendAsync(request, token).ConfigureAwait(false);
+        if (response.Success)
         {
             return response;
         }
@@ -138,20 +127,19 @@ internal abstract class HttpTtsProvider : ITtsProvider
         string body;
         try
         {
-            body = await response.Content.ReadAsStringAsync(token).ConfigureAwait(false);
+            body = await response.ReadTextAsync(token).ConfigureAwait(false);
         }
         catch
         {
             body = "";
         }
 
-        body = body.Length > 400 ? body[..400] : body;
+        body = body.Length > 400 ? body.Substring(0, 400) : body;
         body = Sanitize(body);
-        HttpStatusCode code = response.StatusCode;
+        HttpStatusCode code = response.Status;
         response.Dispose();
 
-        throw new HttpRequestException(
-            $"{Name} HTTP {(int)code} {code}: {body}{Hint(code)}", null, code);
+        throw new HttpFailure($"{Name} HTTP {(int)code} {code}: {body}{Hint(code)}", code);
     }
 
     /// Plain-language hint for the failures users actually hit.
@@ -161,31 +149,28 @@ internal abstract class HttpTtsProvider : ITtsProvider
             " | check the API key scopes (text_to_speech, voices_read; voices_write for cloning)",
         ("elevenlabs", HttpStatusCode.PaymentRequired) =>
             " | the current ElevenLabs plan does not allow this; free plans cannot use library voices or clone",
-        ("elevenlabs", HttpStatusCode.TooManyRequests) =>
+        ("elevenlabs", HttpStatus.TooManyRequests) =>
             " | ElevenLabs quota exhausted for this period",
         ("googleai", HttpStatusCode.BadRequest) =>
             " | check the model name, voice id and request size",
         ("googleai", HttpStatusCode.Forbidden) =>
             " | check that the key is valid and the Generative Language API is enabled",
-        ("googleai", HttpStatusCode.TooManyRequests) =>
+        ("googleai", HttpStatus.TooManyRequests) =>
             " | Gemini free-tier rate limit; wait a moment or switch model to gemini-3.8-flash-lite-tts",
         ("openai", HttpStatusCode.Unauthorized) =>
             " | invalid OpenAI API key",
-        ("openai", HttpStatusCode.PaymentRequired) or ("openai", HttpStatusCode.TooManyRequests) =>
+        ("openai", HttpStatusCode.PaymentRequired) or ("openai", HttpStatus.TooManyRequests) =>
             " | OpenAI quota/billing problem",
         ("qwenremote", HttpStatusCode.Unauthorized) or ("qwenremote", HttpStatusCode.Forbidden) =>
             " | check the server token (qwenremote.apiKey) or leave it empty when the server has no auth",
         ("qwenremote", HttpStatusCode.NotFound) =>
             " | check the server URL and that the Qwen3-TTS API (not just the Gradio UI) is on this port",
-        ("qwenremote", HttpStatusCode.BadRequest) or ("qwenremote", HttpStatusCode.UnprocessableEntity) =>
+        ("qwenremote", HttpStatusCode.BadRequest) or ("qwenremote", HttpStatus.UnprocessableEntity) =>
             " | check mode/model/voice and whether this server supports /v1/audio/speech/clone",
         ("qwenremote", HttpStatusCode.ServiceUnavailable) =>
             " | the GPU pod is probably still loading the model; try again in a minute",
         _ => "",
     };
-
-    protected static StringContent Json<T>(T value) =>
-        new(JsonSerializer.Serialize(value), Encoding.UTF8, "application/json");
 
     /// Keeps error text on one short line so a provider error cannot spam the log.
     private static string Sanitize(string body)
@@ -214,9 +199,7 @@ internal abstract class HttpTtsProvider : ITtsProvider
             builder.Append(char.IsControl(c) ? ' ' : c);
         }
 
-        string text = string.Join(' ', builder.ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries));
-        return text.Length > 200 ? text[..200] + "..." : text;
+        string text = string.Join(" ", builder.ToString().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
+        return text.Length > 200 ? text.Substring(0, 200) + "..." : text;
     }
-
-    protected static AuthenticationHeaderValue Bearer(string key) => new("Bearer", key);
 }

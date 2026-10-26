@@ -1,7 +1,6 @@
 using System.Net;
-using System.Net.Http.Headers;
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace SwyfCloudTts.Providers;
 
@@ -24,12 +23,12 @@ internal sealed class ElevenLabsClones
 
     private readonly Config.ElevenLabsConfig _config;
     private readonly VoiceResolver _voices;
-    private readonly Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> _send;
+    private readonly Func<HttpCall, CancellationToken, Task<HttpReply>> _send;
     private readonly string _statePath;
     private readonly CloneState _state;
 
     public ElevenLabsClones(Config config, VoiceResolver voices,
-                            Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> send)
+                            Func<HttpCall, CancellationToken, Task<HttpReply>> send)
     {
         _config = config.ElevenLabs;
         _voices = voices;
@@ -128,7 +127,7 @@ internal sealed class ElevenLabsClones
                      $"({account.AddEdits + 1}/{account.MaxAddEdits?.ToString() ?? "unlimited"} additions this month)");
             return id;
         }
-        catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+        catch (HttpFailure ex) when (ex.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
         {
             Block(AccountRetry, "key", "the API key lacks the voices_read or voices_write permission " +
                                 "(ElevenLabs -> Developers -> API keys)");
@@ -177,7 +176,7 @@ internal sealed class ElevenLabsClones
         => _state.Clones.TryGetValue(voice.Id, out CloneRecord? record) ? record.LastUsed : voice.Created;
 
     private static string SpeakerOf(RemoteVoice voice)
-        => voice.Name.StartsWith(NamePrefix, StringComparison.Ordinal) ? voice.Name[NamePrefix.Length..] : "";
+        => voice.Name.StartsWith(NamePrefix, StringComparison.Ordinal) ? voice.Name.Substring(NamePrefix.Length) : "";
 
     private void Adopt(VoiceEntry speaker, string voiceId)
     {
@@ -205,16 +204,11 @@ internal sealed class ElevenLabsClones
         get
         {
             string root = _config.BaseUrl.TrimEnd('/');
-            return root.EndsWith("/v1", StringComparison.OrdinalIgnoreCase) ? root[..^3] : root;
+            return root.EndsWith("/v1", StringComparison.OrdinalIgnoreCase) ? root.Substring(0, root.Length - 3) : root;
         }
     }
 
-    private HttpRequestMessage Request(HttpMethod method, string path)
-    {
-        var request = new HttpRequestMessage(method, ApiRoot + path);
-        request.Headers.TryAddWithoutValidation("xi-api-key", _config.ApiKey);
-        return request;
-    }
+    private HttpCall Request(HttpCall call) => call.Header("xi-api-key", _config.ApiKey);
 
     private async Task<List<RemoteVoice>> ListClonesAsync(CancellationToken token)
     {
@@ -224,14 +218,12 @@ internal sealed class ElevenLabsClones
         {
             string path = "/v2/voices?category=cloned&search=" + NamePrefix + "&page_size=100" +
                           (pageToken != null ? "&next_page_token=" + Uri.EscapeDataString(pageToken) : "");
-            using HttpRequestMessage request = Request(HttpMethod.Get, path);
-            using HttpResponseMessage response = await _send(request, token).ConfigureAwait(false);
-            using JsonDocument json = await ReadJsonAsync(response, token).ConfigureAwait(false);
+            using HttpReply response = await _send(Request(HttpCall.Get(ApiRoot + path)), token).ConfigureAwait(false);
+            JObject json = await response.ReadJsonAsync(token).ConfigureAwait(false);
 
-            if (json.RootElement.TryGetProperty("voices", out JsonElement voices) &&
-                voices.ValueKind == JsonValueKind.Array)
+            if (json["voices"] is JArray voices)
             {
-                foreach (JsonElement voice in voices.EnumerateArray())
+                foreach (JObject voice in voices.OfType<JObject>())
                 {
                     string id = Text(voice, "voice_id");
                     string name = Text(voice, "name");
@@ -240,16 +232,14 @@ internal sealed class ElevenLabsClones
                         continue;
                     }
 
-                    long created = voice.TryGetProperty("created_at_unix", out JsonElement unix) &&
-                                   unix.TryGetInt64(out long seconds) ? seconds : 0;
+                    long created = voice["created_at_unix"] is JValue { Type: JTokenType.Integer } unix
+                        ? unix.Value<long>()
+                        : 0;
                     result.Add(new RemoteVoice(id, name, DateTimeOffset.FromUnixTimeSeconds(created).UtcDateTime));
                 }
             }
 
-            pageToken = json.RootElement.TryGetProperty("has_more", out JsonElement more) &&
-                        more.ValueKind == JsonValueKind.True
-                ? Text(json.RootElement, "next_page_token")
-                : null;
+            pageToken = HasMore(json) ? Text(json, "next_page_token") : null;
         }
         while (!string.IsNullOrEmpty(pageToken));
 
@@ -266,13 +256,12 @@ internal sealed class ElevenLabsClones
         {
             string path = "/v2/voices?voice_type=non-default&page_size=100" +
                           (pageToken != null ? "&next_page_token=" + Uri.EscapeDataString(pageToken) : "");
-            using HttpRequestMessage request = Request(HttpMethod.Get, path);
-            using HttpResponseMessage response = await _send(request, token).ConfigureAwait(false);
-            using JsonDocument json = await ReadJsonAsync(response, token).ConfigureAwait(false);
+            using HttpReply response = await _send(Request(HttpCall.Get(ApiRoot + path)), token).ConfigureAwait(false);
+            JObject json = await response.ReadJsonAsync(token).ConfigureAwait(false);
 
-            if (json.RootElement.TryGetProperty("voices", out JsonElement list) && list.ValueKind == JsonValueKind.Array)
+            if (json["voices"] is JArray list)
             {
-                foreach (JsonElement voice in list.EnumerateArray())
+                foreach (JObject voice in list.OfType<JObject>())
                 {
                     string id = Text(voice, "voice_id");
                     string name = Text(voice, "name");
@@ -283,34 +272,30 @@ internal sealed class ElevenLabsClones
                 }
             }
 
-            pageToken = json.RootElement.TryGetProperty("has_more", out JsonElement more) &&
-                        more.ValueKind == JsonValueKind.True
-                ? Text(json.RootElement, "next_page_token")
-                : null;
+            pageToken = HasMore(json) ? Text(json, "next_page_token") : null;
         }
         while (!string.IsNullOrEmpty(pageToken));
 
         string target = Path.Combine(Path.GetDirectoryName(_statePath)!, "elevenlabs-voices.json");
         string temp = target + ".tmp";
         var file = new AccountVoices { Checked = DateTime.UtcNow, Voices = voices };
-        File.WriteAllText(temp, JsonSerializer.Serialize(file, Config.SerializerOptions));
-        File.Move(temp, target, overwrite: true);
+        File.WriteAllText(temp, Config.ToJson(file));
+        Compat.MoveOverwrite(temp, target);
         return voices.Count;
     }
 
     private async Task<Subscription> GetSubscriptionAsync(CancellationToken token)
     {
-        using HttpRequestMessage request = Request(HttpMethod.Get, "/v1/user/subscription");
-        using HttpResponseMessage response = await _send(request, token).ConfigureAwait(false);
-        using JsonDocument json = await ReadJsonAsync(response, token).ConfigureAwait(false);
-        JsonElement root = json.RootElement;
+        using HttpReply response = await _send(Request(HttpCall.Get(ApiRoot + "/v1/user/subscription")), token)
+            .ConfigureAwait(false);
+        JObject root = await response.ReadJsonAsync(token).ConfigureAwait(false);
 
         var account = new Subscription(
             Number(root, "voice_slots_used") ?? 0,
             Number(root, "voice_limit") ?? int.MaxValue,
             Number(root, "voice_add_edit_counter") ?? 0,
             Number(root, "max_voice_add_edits"),
-            !root.TryGetProperty("can_use_instant_voice_cloning", out JsonElement can) || can.ValueKind != JsonValueKind.False,
+            !(root["can_use_instant_voice_cloning"] is JValue { Type: JTokenType.Boolean } can && !can.Value<bool>()),
             Number(root, "next_character_count_reset_unix") is int reset && reset > 0
                 ? DateTimeOffset.FromUnixTimeSeconds(reset).UtcDateTime
                 : null);
@@ -330,12 +315,12 @@ internal sealed class ElevenLabsClones
 
     private async Task DeleteAsync(string voiceId, CancellationToken token)
     {
-        using HttpRequestMessage request = Request(HttpMethod.Delete, "/v1/voices/" + Uri.EscapeDataString(voiceId));
+        HttpCall request = Request(HttpCall.Delete(ApiRoot + "/v1/voices/" + Uri.EscapeDataString(voiceId)));
         try
         {
-            using HttpResponseMessage response = await _send(request, token).ConfigureAwait(false);
+            using HttpReply response = await _send(request, token).ConfigureAwait(false);
         }
-        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        catch (HttpFailure ex) when (ex.StatusCode == HttpStatusCode.NotFound)
         {
             // Already deleted, by hand or by another session.
         }
@@ -343,38 +328,29 @@ internal sealed class ElevenLabsClones
 
     private async Task<string> CreateAsync(float[] reference, string speakerId, CancellationToken token)
     {
-        using var form = new MultipartFormDataContent();
-        form.Add(new StringContent(NamePrefix + speakerId), "name");
-        form.Add(new StringContent("Scam With Your Friends character, cloned by SWYF Cloud TTS"), "description");
+        var form = new MultipartForm()
+            .Text("name", NamePrefix + speakerId)
+            .Text("description", "Scam With Your Friends character, cloned by SWYF Cloud TTS")
+            .File("files", "reference.wav", "audio/wav", Pcm.ToWav(reference));
 
-        var audio = new ByteArrayContent(Pcm.ToWav(reference));
-        audio.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
-        form.Add(audio, "files", "reference.wav");
+        using HttpReply response = await _send(Request(HttpCall.PostForm(ApiRoot + "/v1/voices/add", form)), token)
+            .ConfigureAwait(false);
+        JObject json = await response.ReadJsonAsync(token).ConfigureAwait(false);
 
-        using HttpRequestMessage request = Request(HttpMethod.Post, "/v1/voices/add");
-        request.Content = form;
-        using HttpResponseMessage response = await _send(request, token).ConfigureAwait(false);
-        using JsonDocument json = await ReadJsonAsync(response, token).ConfigureAwait(false);
-
-        string id = Text(json.RootElement, "voice_id");
+        string id = Text(json, "voice_id");
         return id.Length > 0 ? id : throw new InvalidOperationException("ElevenLabs returned no voice_id");
     }
 
-    private static async Task<JsonDocument> ReadJsonAsync(HttpResponseMessage response, CancellationToken token)
-    {
-        await using Stream body = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
-        return await JsonDocument.ParseAsync(body, cancellationToken: token).ConfigureAwait(false);
-    }
+    private static string Text(JObject element, string name)
+        => element[name] is JValue { Type: JTokenType.String } value ? value.Value<string>() ?? "" : "";
 
-    private static string Text(JsonElement element, string name)
-        => element.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.String
-            ? value.GetString() ?? ""
-            : "";
-
-    private static int? Number(JsonElement element, string name)
-        => element.TryGetProperty(name, out JsonElement value) && value.TryGetInt64(out long number)
-            ? (int)Math.Clamp(number, int.MinValue, int.MaxValue)
+    private static int? Number(JObject element, string name)
+        => element[name] is JValue { Type: JTokenType.Integer } value
+            ? (int)Math.Max(int.MinValue, Math.Min(int.MaxValue, value.Value<long>()))
             : null;
+
+    private static bool HasMore(JObject json)
+        => json["has_more"] is JValue { Type: JTokenType.Boolean } more && more.Value<bool>();
 
     private static CloneState ReadState(string path)
     {
@@ -382,7 +358,7 @@ internal sealed class ElevenLabsClones
         {
             if (File.Exists(path))
             {
-                return JsonSerializer.Deserialize<CloneState>(File.ReadAllText(path), Config.SerializerOptions) ??
+                return Config.FromJson<CloneState>(File.ReadAllText(path)) ??
                        new CloneState();
             }
         }
@@ -399,8 +375,8 @@ internal sealed class ElevenLabsClones
         try
         {
             string temp = _statePath + ".tmp";
-            File.WriteAllText(temp, JsonSerializer.Serialize(_state, Config.SerializerOptions));
-            File.Move(temp, _statePath, overwrite: true);
+            File.WriteAllText(temp, Config.ToJson(_state));
+            Compat.MoveOverwrite(temp, _statePath);
         }
         catch (Exception ex)
         {
@@ -416,51 +392,51 @@ internal sealed class ElevenLabsClones
 
 internal sealed class CloneState
 {
-    [JsonPropertyName("clones")] public Dictionary<string, CloneRecord> Clones { get; set; } = new();
+    [JsonProperty("clones")] public Dictionary<string, CloneRecord> Clones { get; set; } = new();
 
-    [JsonPropertyName("blockedUntil")] public DateTime? BlockedUntil { get; set; }
+    [JsonProperty("blockedUntil")] public DateTime? BlockedUntil { get; set; }
 
-    [JsonPropertyName("blockedCode")] public string? BlockedCode { get; set; }
+    [JsonProperty("blockedCode")] public string? BlockedCode { get; set; }
 
-    [JsonPropertyName("blockedReason")] public string? BlockedReason { get; set; }
+    [JsonProperty("blockedReason")] public string? BlockedReason { get; set; }
 
-    [JsonPropertyName("retryAfter")] public Dictionary<string, DateTime> RetryAfter { get; set; } = new();
+    [JsonProperty("retryAfter")] public Dictionary<string, DateTime> RetryAfter { get; set; } = new();
 
-    [JsonPropertyName("account")] public AccountSnapshot? Account { get; set; }
+    [JsonProperty("account")] public AccountSnapshot? Account { get; set; }
 }
 
 internal sealed class AccountSnapshot
 {
-    [JsonPropertyName("slotsUsed")] public int SlotsUsed { get; set; }
+    [JsonProperty("slotsUsed")] public int SlotsUsed { get; set; }
 
-    [JsonPropertyName("slotLimit")] public int SlotLimit { get; set; }
+    [JsonProperty("slotLimit")] public int SlotLimit { get; set; }
 
-    [JsonPropertyName("addEdits")] public int AddEdits { get; set; }
+    [JsonProperty("addEdits")] public int AddEdits { get; set; }
 
-    [JsonPropertyName("maxAddEdits")] public int? MaxAddEdits { get; set; }
+    [JsonProperty("maxAddEdits")] public int? MaxAddEdits { get; set; }
 
-    [JsonPropertyName("checked")] public DateTime Checked { get; set; }
+    [JsonProperty("checked")] public DateTime Checked { get; set; }
 }
 
 internal sealed class CloneRecord
 {
-    [JsonPropertyName("speaker")] public string Speaker { get; set; } = "";
+    [JsonProperty("speaker")] public string Speaker { get; set; } = "";
 
-    [JsonPropertyName("lastUsed")] public DateTime LastUsed { get; set; }
+    [JsonProperty("lastUsed")] public DateTime LastUsed { get; set; }
 }
 
 internal sealed class AccountVoices
 {
-    [JsonPropertyName("checked")] public DateTime Checked { get; set; }
+    [JsonProperty("checked")] public DateTime Checked { get; set; }
 
-    [JsonPropertyName("voices")] public List<AccountVoice> Voices { get; set; } = new();
+    [JsonProperty("voices")] public List<AccountVoice> Voices { get; set; } = new();
 }
 
 internal sealed class AccountVoice
 {
-    [JsonPropertyName("id")] public string Id { get; set; } = "";
+    [JsonProperty("id")] public string Id { get; set; } = "";
 
-    [JsonPropertyName("name")] public string Name { get; set; } = "";
+    [JsonProperty("name")] public string Name { get; set; } = "";
 
-    [JsonPropertyName("category")] public string Category { get; set; } = "";
+    [JsonProperty("category")] public string Category { get; set; } = "";
 }

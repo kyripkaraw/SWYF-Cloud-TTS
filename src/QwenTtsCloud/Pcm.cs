@@ -1,5 +1,3 @@
-using System.Buffers.Binary;
-using System.Security.Cryptography;
 using System.Text;
 
 namespace SwyfCloudTts;
@@ -16,15 +14,16 @@ internal static class Pcm
         private bool _hasLeftover;
 
         /// Returns the samples completed by this batch (may be empty).
-        public float[] Push(ReadOnlySpan<byte> bytes)
+        public float[] Push(byte[] bytes, int offset, int length)
         {
-            int start = 0;
-            int count = (bytes.Length + (_hasLeftover ? 1 : 0)) / 2;
+            int start = offset;
+            int end = offset + length;
+            int count = (length + (_hasLeftover ? 1 : 0)) / 2;
             if (count == 0)
             {
-                if (bytes.Length == 1)
+                if (length == 1)
                 {
-                    _leftover = bytes[0];
+                    _leftover = bytes[offset];
                     _hasLeftover = true;
                 }
 
@@ -36,26 +35,25 @@ internal static class Pcm
 
             if (_hasLeftover)
             {
-                ushort value = (ushort)(_leftover | (bytes[0] << 8));
+                ushort value = (ushort)(_leftover | (bytes[start] << 8));
                 result[index++] = (short)value / 32768f;
                 _hasLeftover = false;
-                start = 1;
+                start++;
             }
 
-            int usable = (bytes.Length - start) & ~1;
-            int end = start + usable;
-            for (int offset = start; offset < end; offset += 2)
+            int usableEnd = start + ((end - start) & ~1);
+            for (int i = start; i < usableEnd; i += 2)
             {
-                result[index++] = BinaryPrimitives.ReadInt16LittleEndian(bytes[offset..]) / 32768f;
+                result[index++] = ReadInt16(bytes, i) / 32768f;
             }
 
-            if (end < bytes.Length)
+            if (usableEnd < end)
             {
-                _leftover = bytes[end];
+                _leftover = bytes[usableEnd];
                 _hasLeftover = true;
             }
 
-            return index == result.Length ? result : result[..index];
+            return index == result.Length ? result : Compat.Slice(result, 0, index);
         }
 
         /// Pads an odd trailing byte so a stream never ends on half a sample.
@@ -72,27 +70,26 @@ internal static class Pcm
     }
 
     /// Encodes float samples as little-endian 32-bit floats, the format the game reads.
-    public static byte[] FloatToBytes(ReadOnlySpan<float> samples)
+    public static byte[] FloatToBytes(float[] samples, int count)
     {
-        var bytes = new byte[samples.Length * 4];
-        for (int i = 0; i < samples.Length; i++)
+        var clean = new float[count];
+        for (int i = 0; i < count; i++)
         {
             float v = samples[i];
-            if (float.IsNaN(v) || float.IsInfinity(v))
-            {
-                v = 0f;
-            }
-
-            BinaryPrimitives.WriteSingleLittleEndian(bytes.AsSpan(i * 4), Math.Clamp(v, -1f, 1f));
+            clean[i] = float.IsNaN(v) || float.IsInfinity(v) ? 0f : Clamp(v);
         }
 
+        var bytes = new byte[count * 4];
+        Buffer.BlockCopy(clean, 0, bytes, 0, bytes.Length);
         return bytes;
     }
 
-    public static byte[] FloatToS16(ReadOnlySpan<float> samples)
+    public static byte[] FloatToS16(float[] samples) => FloatToS16(samples, samples.Length);
+
+    public static byte[] FloatToS16(float[] samples, int count)
     {
-        var bytes = new byte[samples.Length * 2];
-        for (int i = 0; i < samples.Length; i++)
+        var bytes = new byte[count * 2];
+        for (int i = 0; i < count; i++)
         {
             float v = samples[i];
             if (float.IsNaN(v))
@@ -100,25 +97,27 @@ internal static class Pcm
                 v = 0f;
             }
 
-            v = Math.Clamp(v, -1f, 1f);
-            short s = (short)Math.Round(v * 32767f);
-            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(i * 2), s);
+            short s = (short)Math.Round(Clamp(v) * 32767f);
+            bytes[i * 2] = (byte)s;
+            bytes[i * 2 + 1] = (byte)(s >> 8);
         }
 
         return bytes;
     }
 
+    public static float Clamp(float value) => value < -1f ? -1f : (value > 1f ? 1f : value);
+
+    public static short ReadInt16(byte[] data, int offset) => (short)(data[offset] | (data[offset + 1] << 8));
+
     /// Stable id for a speaker reference; used to remember which cloud voice belongs to whom.
-    public static string HashReference(ReadOnlySpan<float> reference)
+    public static string HashReference(float[] reference)
     {
         // Quantize to 16 bit so tiny floating point differences don't change the id.
-        byte[] bytes = FloatToS16(reference);
-        byte[] hash = SHA256.HashData(bytes);
-        return Convert.ToHexString(hash, 0, 8).ToLowerInvariant();
+        return Compat.Sha256Hex(FloatToS16(reference), 8);
     }
 
     /// Very rough median pitch estimate, used only to pick a plausible cloud voice.
-    public static double EstimatePitchHz(ReadOnlySpan<float> samples, int sampleRate = SampleRate)
+    public static double EstimatePitchHz(float[] samples, int sampleRate = SampleRate)
     {
         const int frame = 1024;
         const int hop = 512;
@@ -196,20 +195,20 @@ internal static class Pcm
         while (pos + 8 <= data.Length)
         {
             string id = Encoding.ASCII.GetString(data, pos, 4);
-            int size = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(pos + 4, 4));
+            int size = BitConverter.ToInt32(data, pos + 4);
             int body = pos + 8;
 
             if (id == "fmt " && body + 16 <= data.Length)
             {
-                format = BinaryPrimitives.ReadInt16LittleEndian(data.AsSpan(body, 2));
-                channels = Math.Max(1, (int)BinaryPrimitives.ReadInt16LittleEndian(data.AsSpan(body + 2, 2)));
-                sampleRate = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(body + 4, 4));
-                bits = Math.Max(8, (int)BinaryPrimitives.ReadInt16LittleEndian(data.AsSpan(body + 14, 2)));
+                format = ReadInt16(data, body);
+                channels = Math.Max(1, (int)ReadInt16(data, body + 2));
+                sampleRate = BitConverter.ToInt32(data, body + 4);
+                bits = Math.Max(8, (int)ReadInt16(data, body + 14));
 
                 if (format == 0xFFFE && body + 26 <= data.Length)
                 {
                     // WAVE_FORMAT_EXTENSIBLE stores the real format in the GUID prefix.
-                    format = BinaryPrimitives.ReadInt16LittleEndian(data.AsSpan(body + 24, 2));
+                    format = ReadInt16(data, body + 24);
                 }
             }
             else if (id == "data")
@@ -261,7 +260,7 @@ internal static class Pcm
 
                 if (format == 3 && bits == 32)
                 {
-                    sum += BinaryPrimitives.ReadSingleLittleEndian(data.AsSpan(offset, 4));
+                    sum += BitConverter.ToSingle(data, offset);
                 }
                 else if (bits == 8)
                 {
@@ -269,7 +268,7 @@ internal static class Pcm
                 }
                 else if (bits == 16)
                 {
-                    sum += BinaryPrimitives.ReadInt16LittleEndian(data.AsSpan(offset, 2)) / 32768.0;
+                    sum += ReadInt16(data, offset) / 32768.0;
                 }
                 else if (bits == 24)
                 {
@@ -283,7 +282,7 @@ internal static class Pcm
                 }
                 else
                 {
-                    sum += BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(offset, 4)) / 2147483648.0;
+                    sum += BitConverter.ToInt32(data, offset) / 2147483648.0;
                 }
             }
 
@@ -316,22 +315,22 @@ internal static class Pcm
             double fraction = position - index;
             float a = input[Math.Min(index, input.Length - 1)];
             float b = input[Math.Min(index + 1, input.Length - 1)];
-            output[i] = Math.Clamp((float)(a + (b - a) * fraction), -1f, 1f);
+            output[i] = Clamp((float)(a + (b - a) * fraction));
         }
 
         return output;
     }
 
     /// Wraps float samples into a minimal 16-bit mono WAV file (used for voice cloning).
-    public static byte[] ToWav(ReadOnlySpan<float> samples, int sampleRate = SampleRate)
+    public static byte[] ToWav(float[] samples, int sampleRate = SampleRate)
     {
         byte[] pcm = FloatToS16(samples);
         using var ms = new MemoryStream(44 + pcm.Length);
         using var bw = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true);
-        bw.Write("RIFF"u8);
+        bw.Write(Encoding.ASCII.GetBytes("RIFF"));
         bw.Write(36 + pcm.Length);
-        bw.Write("WAVE"u8);
-        bw.Write("fmt "u8);
+        bw.Write(Encoding.ASCII.GetBytes("WAVE"));
+        bw.Write(Encoding.ASCII.GetBytes("fmt "));
         bw.Write(16);
         bw.Write((short)1);
         bw.Write((short)1);
@@ -339,7 +338,7 @@ internal static class Pcm
         bw.Write(sampleRate * 2);
         bw.Write((short)2);
         bw.Write((short)16);
-        bw.Write("data"u8);
+        bw.Write(Encoding.ASCII.GetBytes("data"));
         bw.Write(pcm.Length);
         bw.Write(pcm);
         bw.Flush();

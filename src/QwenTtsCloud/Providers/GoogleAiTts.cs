@@ -1,7 +1,5 @@
-using System.Buffers.Binary;
-using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
+using Newtonsoft.Json.Linq;
 
 namespace SwyfCloudTts.Providers;
 
@@ -33,7 +31,7 @@ internal sealed class GoogleAiTts : HttpTtsProvider
     {
         string voiceId = ResolveVoice(voice);
         string style = _config.Style ?? "";
-        string styleHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(style)))[..8].ToLowerInvariant();
+        string styleHash = Compat.Sha256Hex(Encoding.UTF8.GetBytes(style), 4);
         return $"{voiceId}|{_config.Model}|{styleHash}";
     }
 
@@ -93,19 +91,13 @@ internal sealed class GoogleAiTts : HttpTtsProvider
             },
         };
 
-        using var httpRequest = new HttpRequestMessage(
-            HttpMethod.Post, _config.BaseUrl.TrimEnd('/') + "/interactions")
-        {
-            Content = Json(payload),
-        };
-        httpRequest.Headers.TryAddWithoutValidation("x-goog-api-key", _config.ApiKey);
+        HttpCall httpRequest = HttpCall.PostJson(_config.BaseUrl.TrimEnd('/') + "/interactions", payload)
+            .Header("x-goog-api-key", _config.ApiKey);
 
-        using HttpResponseMessage response = await SendAsync(httpRequest, token).ConfigureAwait(false);
-        await using Stream stream = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
-        using JsonDocument document = await JsonDocument.ParseAsync(stream, cancellationToken: token)
-            .ConfigureAwait(false);
+        using HttpReply response = await SendAsync(httpRequest, token).ConfigureAwait(false);
+        JObject document = await response.ReadJsonAsync(token).ConfigureAwait(false);
 
-        byte[] audio = ExtractAudio(document.RootElement);
+        byte[] audio = ExtractAudio(document);
         if (audio.Length == 0)
         {
             throw new InvalidOperationException(
@@ -117,27 +109,23 @@ internal sealed class GoogleAiTts : HttpTtsProvider
     }
 
     /// Accepts both the Interactions and the generateContent response shapes.
-    private static byte[] ExtractAudio(JsonElement root)
+    private static byte[] ExtractAudio(JObject root)
     {
-        if (root.TryGetProperty("steps", out JsonElement steps) && steps.ValueKind == JsonValueKind.Array)
+        if (root["steps"] is JArray steps)
         {
             byte[] found = Array.Empty<byte>();
-            foreach (JsonElement step in steps.EnumerateArray())
+            foreach (JObject step in steps.OfType<JObject>())
             {
-                if (!step.TryGetProperty("content", out JsonElement content) ||
-                    content.ValueKind != JsonValueKind.Array)
+                if (step["content"] is not JArray content)
                 {
                     continue;
                 }
 
-                foreach (JsonElement item in content.EnumerateArray())
+                foreach (JObject item in content.OfType<JObject>())
                 {
-                    if (item.TryGetProperty("type", out JsonElement type) &&
-                        type.GetString() == "audio" &&
-                        item.TryGetProperty("data", out JsonElement data) &&
-                        data.ValueKind == JsonValueKind.String)
+                    if (String(item, "type") == "audio" && String(item, "data") is { } data)
                     {
-                        found = Decode(data.GetString());
+                        found = Decode(data);
                     }
                 }
             }
@@ -148,45 +136,36 @@ internal sealed class GoogleAiTts : HttpTtsProvider
             }
         }
 
-        if (root.TryGetProperty("candidates", out JsonElement candidates) &&
-            candidates.ValueKind == JsonValueKind.Array)
+        if (root["candidates"] is JArray candidates)
         {
-            foreach (JsonElement candidate in candidates.EnumerateArray())
+            foreach (JObject candidate in candidates.OfType<JObject>())
             {
-                if (!candidate.TryGetProperty("content", out JsonElement content) ||
-                    !content.TryGetProperty("parts", out JsonElement parts) ||
-                    parts.ValueKind != JsonValueKind.Array)
+                if (candidate["content"] is not JObject content || content["parts"] is not JArray parts)
                 {
                     continue;
                 }
 
-                foreach (JsonElement part in parts.EnumerateArray())
+                foreach (JObject part in parts.OfType<JObject>())
                 {
-                    JsonElement inline;
-                    if (!part.TryGetProperty("inlineData", out inline) &&
-                        !part.TryGetProperty("inline_data", out inline))
+                    if ((part["inlineData"] ?? part["inline_data"]) is JObject inline &&
+                        String(inline, "data") is { } data)
                     {
-                        continue;
-                    }
-
-                    if (inline.TryGetProperty("data", out JsonElement data) &&
-                        data.ValueKind == JsonValueKind.String)
-                    {
-                        return Decode(data.GetString());
+                        return Decode(data);
                     }
                 }
             }
         }
 
-        if (root.TryGetProperty("output_audio", out JsonElement output) &&
-            output.TryGetProperty("data", out JsonElement direct) &&
-            direct.ValueKind == JsonValueKind.String)
+        if (root["output_audio"] is JObject output && String(output, "data") is { } direct)
         {
-            return Decode(direct.GetString());
+            return Decode(direct);
         }
 
         return Array.Empty<byte>();
     }
+
+    private static string? String(JObject element, string name)
+        => element[name] is JValue { Type: JTokenType.String } value ? value.Value<string>() : null;
 
     private static byte[] Decode(string? base64)
     {
@@ -218,7 +197,7 @@ internal sealed class GoogleAiTts : HttpTtsProvider
         while (offset + 8 <= audio.Length)
         {
             string id = Encoding.ASCII.GetString(audio, offset, 4);
-            int size = BinaryPrimitives.ReadInt32LittleEndian(audio.AsSpan(offset + 4));
+            int size = BitConverter.ToInt32(audio, offset + 4);
             if (size < 0)
             {
                 break;
@@ -228,19 +207,28 @@ internal sealed class GoogleAiTts : HttpTtsProvider
             if (id == "data")
             {
                 int length = Math.Min(size, audio.Length - start);
-                return audio.AsSpan(start, Math.Max(0, length)).ToArray();
+                var data = new byte[Math.Max(0, length)];
+                Array.Copy(audio, start, data, 0, data.Length);
+                return data;
             }
 
             offset = start + size + (size & 1);
         }
 
-        return audio.Length > 44 ? audio[44..] : Array.Empty<byte>();
+        if (audio.Length <= 44)
+        {
+            return Array.Empty<byte>();
+        }
+
+        var body = new byte[audio.Length - 44];
+        Array.Copy(audio, 44, body, 0, body.Length);
+        return body;
     }
 
     private static void EmitPcm(byte[] pcm, Action<float[]> onSamples)
     {
         var converter = new Pcm.S16ToFloat();
-        float[] samples = converter.Push(pcm);
+        float[] samples = converter.Push(pcm, 0, pcm.Length);
         if (samples.Length > 0)
         {
             onSamples(samples);

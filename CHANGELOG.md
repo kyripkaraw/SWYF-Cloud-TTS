@@ -4,6 +4,22 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- `SwyfCloudTts.dll`: the whole mod as one BepInEx 5 plugin, for Switchboard and other BepInEx
+  installs. It speaks in the game's own process through Harmony hooks on the game's Qwen client,
+  so there is no `QwenTtsWorker.exe` and no worker started per line. The game's GPU check, the
+  worker checksum and the 1.3 GB Qwen model download are skipped while a cloud provider is chosen.
+  Built by `pluginuild-bepinex.ps1`, which also packs the release zip.
+- The log records how long each line waited for its first audio.
+
+### Changed
+- The worker and the plugin share one engine (`SpeechEngine`) and talk HTTP through a small
+  transport that uses HttpClient in the worker and HttpWebRequest in the game, whose
+  `System.Net.Http` is stripped. JSON goes through Newtonsoft in both. Speaker ids, cache keys and
+  state files are unchanged.
+
 ## [1.3.0] - 2026-10-22
 
 ### Added

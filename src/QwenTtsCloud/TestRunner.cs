@@ -16,7 +16,7 @@ internal static class TestRunner
 
         if (text.Length > 500)
         {
-            text = text[..500];
+            text = text.Substring(0, 500);
         }
 
         string outputPath = Cli.Value(args, "--out") is { Length: > 0 } outArg
@@ -100,41 +100,69 @@ internal static class TestRunner
             }
         }
 
+        float[]? samples = Synthesize(config, text, language, Cli.Value(args, "--speaker"), Console.WriteLine,
+            out string error, out int code);
+        if (samples == null)
+        {
+            Console.Error.WriteLine(error);
+            return code;
+        }
+
+        try
+        {
+            string full = Path.GetFullPath(outputPath);
+            File.WriteAllBytes(full, Pcm.ToWav(samples));
+            Console.WriteLine($"wav: {full}");
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("cannot write wav: " + ex.Message);
+            return 5;
+        }
+
+        return 0;
+    }
+
+    /// Speaks one test phrase with the given config. Returns null, with an error and an exit
+    /// code, when the provider is not usable or fails.
+    internal static float[]? Synthesize(Config config, string text, string language, string? speakerId,
+                                        Action<string> info, out string error, out int code)
+    {
         // Cloning needs a real game clip; previews without one use a stock or server voice.
         float[] reference = Array.Empty<float>();
         string clipSpeaker = "";
         if (config.Provider == "elevenlabs")
         {
-            (reference, clipSpeaker) = TryLoadReference(config.StateDirectory, Cli.Value(args, "--speaker"));
+            (reference, clipSpeaker) = TryLoadReference(config.StateDirectory, speakerId, info);
             if (reference.Length == 0)
             {
                 config.ElevenLabs.AutoClone = false;
-                Console.WriteLine("reference: none found in the voice cache, previewing the stock voice");
+                info("reference: none found in the voice cache, previewing the stock voice");
             }
             else
             {
-                Console.WriteLine($"reference: {reference.Length / (double)Pcm.SampleRate:0.0} s " +
-                                  "from the voice cache (the clone path will be exercised)");
+                info($"reference: {reference.Length / (double)Pcm.SampleRate:0.0} s " +
+                     "from the voice cache (the clone path will be exercised)");
             }
         }
 
         else if (config.Provider == "qwenremote" && config.QwenRemote.Mode == "clone")
         {
-            (reference, clipSpeaker) = TryLoadReference(config.StateDirectory, Cli.Value(args, "--speaker"));
+            (reference, clipSpeaker) = TryLoadReference(config.StateDirectory, speakerId, info);
             if (reference.Length == 0)
             {
                 config.QwenRemote.Mode = "voice";
-                Console.WriteLine("reference: none found in the voice cache, previewing the server voice");
+                info("reference: none found in the voice cache, previewing the server voice");
             }
             else
             {
-                Console.WriteLine($"reference: {reference.Length / (double)Pcm.SampleRate:0.0} s from the voice cache");
+                info($"reference: {reference.Length / (double)Pcm.SampleRate:0.0} s from the voice cache");
             }
         }
 
-        Console.WriteLine($"config:   {config.Path}");
-        Console.WriteLine($"provider: {config.Provider}");
-        Console.WriteLine($"text:     {text}");
+        info($"config:   {config.Path}");
+        info($"provider: {config.Provider}");
+        info($"text:     {text}");
 
         var voices = new VoiceResolver(config);
 
@@ -147,17 +175,15 @@ internal static class TestRunner
 
         if (passthroughOnly)
         {
-            Console.Error.WriteLine("provider 'passthrough' runs the local model; nothing to test");
-            return 2;
+            return Fail(2, "provider 'passthrough' runs the local model; nothing to test", out error, out code);
         }
 
         if (!tts.Ready)
         {
-            Console.Error.WriteLine($"provider '{tts.Name}' is not configured.");
-            Console.Error.WriteLine("Use --key/--base-url, edit the config, or set SWYF_TTS_GOOGLEAI_KEY / " +
-                                    "SWYF_TTS_ELEVENLABS_KEY / SWYF_TTS_OPENAI_KEY / " +
-                                    "SWYF_TTS_QWENREMOTE_URL.");
-            return 2;
+            return Fail(2, $"provider '{tts.Name}' is not configured. " +
+                           "Use --key/--base-url, edit the config, or set SWYF_TTS_GOOGLEAI_KEY / " +
+                           "SWYF_TTS_ELEVENLABS_KEY / SWYF_TTS_OPENAI_KEY / SWYF_TTS_QWENREMOTE_URL.",
+                out error, out code);
         }
 
         var samples = new List<float>(Pcm.SampleRate * 8);
@@ -181,44 +207,39 @@ internal static class TestRunner
         catch (Exception ex)
         {
             stopwatch.Stop();
-            Console.Error.WriteLine($"FAILED after {stopwatch.ElapsedMilliseconds} ms: {ex.Message}");
-            return 3;
+            return Fail(3, $"FAILED after {stopwatch.ElapsedMilliseconds} ms: {ex.Message}", out error, out code);
         }
 
         stopwatch.Stop();
 
         if (samples.Count == 0)
         {
-            Console.Error.WriteLine("provider returned no audio");
-            return 4;
+            return Fail(4, "provider returned no audio", out error, out code);
         }
 
-        try
-        {
-            string full = Path.GetFullPath(outputPath);
-            File.WriteAllBytes(full, Pcm.ToWav(samples.ToArray()));
-            Console.WriteLine(
-                $"ok: {samples.Count} samples ({samples.Count / (double)Pcm.SampleRate:0.00} s) " +
-                $"in {stopwatch.ElapsedMilliseconds} ms");
-            Console.WriteLine($"wav: {full}");
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine("cannot write wav: " + ex.Message);
-            return 5;
-        }
+        info($"ok: {samples.Count} samples ({samples.Count / (double)Pcm.SampleRate:0.00} s) " +
+             $"in {stopwatch.ElapsedMilliseconds} ms");
+        error = "";
+        code = 0;
+        return samples.ToArray();
+    }
 
-        return 0;
+    private static float[]? Fail(int exitCode, string message, out string error, out int code)
+    {
+        error = message;
+        code = exitCode;
+        return null;
     }
 
     /// A clip the game has already sent (the given speaker's, or the first one), to test cloning.
-    private static (float[] Samples, string Speaker) TryLoadReference(string stateDirectory, string? speakerId)
+    private static (float[] Samples, string Speaker) TryLoadReference(string stateDirectory, string? speakerId,
+                                                                      Action<string> info)
     {
         try
         {
             string directory = Path.Combine(stateDirectory, "voices");
             string? file = !string.IsNullOrWhiteSpace(speakerId)
-                ? Path.Combine(directory, speakerId.Trim() + ".wav")
+                ? Path.Combine(directory, speakerId!.Trim() + ".wav")
                 : Directory.Exists(directory)
                     ? Directory.GetFiles(directory, "*.wav").OrderBy(path => path, StringComparer.Ordinal).FirstOrDefault()
                     : null;
@@ -230,11 +251,11 @@ internal static class TestRunner
 
             float[] samples = Pcm.FromWav(File.ReadAllBytes(file));
             int cap = Pcm.SampleRate * 10;
-            return (samples.Length > cap ? samples[..cap] : samples, Path.GetFileNameWithoutExtension(file));
+            return (samples.Length > cap ? Compat.Slice(samples, 0, cap) : samples, Path.GetFileNameWithoutExtension(file));
         }
         catch (Exception ex)
         {
-            Console.WriteLine("reference: cannot read a cached clip (" + ex.Message + ")");
+            info("reference: cannot read a cached clip (" + ex.Message + ")");
             return (Array.Empty<float>(), "");
         }
     }

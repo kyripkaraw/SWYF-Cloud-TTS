@@ -41,7 +41,7 @@ internal sealed class ElevenLabsTts : HttpTtsProvider
             {
                 await StreamAsync(voiceId, request.Text, emit, ct).ConfigureAwait(false);
             }
-            catch (HttpRequestException ex) when (IsMissingVoice(ex) && _clones.IsOwnClone(voiceId))
+            catch (HttpFailure ex) when (IsMissingVoice(ex) && _clones.IsOwnClone(voiceId))
             {
                 Log.Warn($"clone {voiceId} of speaker {request.Voice.Id} was deleted; getting a new voice");
                 _clones.Forget(voiceId, request.Voice);
@@ -96,18 +96,14 @@ internal sealed class ElevenLabsTts : HttpTtsProvider
         string url = $"{_config.BaseUrl.TrimEnd('/')}/text-to-speech/{Uri.EscapeDataString(voiceId)}/stream" +
                      "?output_format=pcm_24000";
 
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, url)
-        {
-            Content = Json(payload),
-        };
-        httpRequest.Headers.TryAddWithoutValidation("xi-api-key", _config.ApiKey);
+        HttpCall httpRequest = HttpCall.PostJson(url, payload).Header("xi-api-key", _config.ApiKey);
 
-        using HttpResponseMessage response = await SendAsync(httpRequest, token).ConfigureAwait(false);
+        using HttpReply response = await SendAsync(httpRequest, token).ConfigureAwait(false);
         await StreamPcmAsync(response, emit, token).ConfigureAwait(false);
     }
 
-    private static bool IsMissingVoice(HttpRequestException ex)
+    private static bool IsMissingVoice(HttpFailure ex)
         => ex.StatusCode == HttpStatusCode.NotFound ||
            (ex.StatusCode == HttpStatusCode.BadRequest &&
-            ex.Message.Contains("voice_not_found", StringComparison.OrdinalIgnoreCase));
+            ex.Message.IndexOf("voice_not_found", StringComparison.OrdinalIgnoreCase) >= 0);
 }

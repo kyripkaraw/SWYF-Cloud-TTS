@@ -51,18 +51,20 @@ def wav(samples: bytes) -> bytes:
 
 
 def _value_start(body: bytes, name: str) -> int | None:
-    marker = b"name=" + name.encode()
-    start = 0
-    while True:
-        start = body.find(marker, start)
-        if start < 0:
-            return None
-        end = start + len(marker)
-        following = body[end:end + 1]
-        if following in (b'"', b"\r", b";"):
-            head_end = body.find(b"\r\n\r\n", end)
-            return head_end + 4 if head_end >= 0 else None
-        start = end
+    # Workers before 1.4 (HttpClient) wrote name=text; newer ones quote it like browsers do.
+    for marker in (b"name=" + name.encode(), b'name="' + name.encode() + b'"'):
+        start = 0
+        while True:
+            start = body.find(marker, start)
+            if start < 0:
+                break
+            end = start + len(marker)
+            following = body[end:end + 1]
+            if following in (b'"', b"\r", b";"):
+                head_end = body.find(b"\r\n\r\n", end)
+                return head_end + 4 if head_end >= 0 else None
+            start = end
+    return None
 
 
 def multipart_field(body: bytes, name: str) -> str | None:

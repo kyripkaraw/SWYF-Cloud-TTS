@@ -28,7 +28,10 @@ namespace SwyfCloudTts.Plugin
         {
             DontDestroyOnLoad(gameObject);
             PluginLog.Info("settings host created");
+#if !BEPINEX
+            // The BepInEx build answers the hardware check through Harmony instead.
             CloudTtsHardwareGate.Apply(CloudTtsConfig.Load());
+#endif
         }
 
         private void Update()
