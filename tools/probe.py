@@ -12,6 +12,10 @@ Usage:
         --text "Привіт, це тест синтезу." --lang Russian \
         --provider mock --out out.wav --repeat 2
 
+--protocol 2 (the default) talks like game 0.1.95: Load(model, backend) answered with
+"1, 2, backend", and repeated lines of one speaker send a zero-length reference.
+--protocol 1 talks like game 0.1.83 and older: Load(talker, codec, backend) answered with "1, 1".
+
 Requires ffmpeg on PATH (used to decode the reference clip to 24 kHz mono float).
 """
 
@@ -116,24 +120,34 @@ class Worker:
             shift += 7
         return self.read_exact(length).decode("utf-8")
 
-    def load(self, talker: str, codec: str, backend: str = "CPU") -> None:
+    def load(self, protocol: int, backend: str = "CPU") -> None:
         started = time.monotonic()
-        self.send(b"\x01\x00\x00\x00" + encode_string(talker) +
-                  encode_string(codec) + encode_string(backend))
+        if protocol == 2:
+            fields = [r"C:\models\qwen3-tts-12hz-0.6b-base-q8_0.gguf", backend]
+        else:
+            fields = [r"C:\models\talker.gguf", r"C:\models\codec.gguf", backend]
+        self.send(b"\x01\x00\x00\x00" + b"".join(encode_string(field) for field in fields))
         code = self.read_int()
         if code == 4:
             raise SystemExit("load failed: " + self.read_string())
-        if code != 1 or self.read_int() != 1:
-            raise SystemExit(f"unexpected load reply {code}")
-        print(f"load ok in {time.monotonic() - started:.2f}s (read {self.total_read} bytes)")
+        version = self.read_int() if code == 1 else None
+        if code != 1 or version != protocol:
+            raise SystemExit(f"unexpected load reply {code}, {version}")
+        reported = f", backend {self.read_string()}" if protocol == 2 else ""
+        print(f"load ok in {time.monotonic() - started:.2f}s (protocol {protocol}{reported}, "
+              f"read {self.total_read} bytes)")
 
-    def synthesize(self, text: str, language: str, reference: list[float]) -> tuple[list[float], float, float]:
+    def synthesize(self, text: str, language: str, reference: list[float] | None) -> tuple[list[float], float, float]:
+        """reference=None sends a zero length: "the same speaker as last time" (protocol 2)."""
         started = time.monotonic()
         payload = bytearray(b"\x02\x00\x00\x00")
         payload += encode_string(text)
         payload += encode_string(language)
-        payload += struct.pack("<i", len(reference))
-        payload += struct.pack(f"<{len(reference)}f", *reference)
+        if reference is None:
+            payload += struct.pack("<i", 0)
+        else:
+            payload += struct.pack("<i", len(reference))
+            payload += struct.pack(f"<{len(reference)}f", *reference)
         self.send(bytes(payload))
 
         pcm: list[float] = []
@@ -223,6 +237,9 @@ def main() -> int:
     parser.add_argument("--lang", default="English")
     parser.add_argument("--out", default="probe.wav")
     parser.add_argument("--repeat", type=int, default=1, help="send the same request N times (cache test)")
+    parser.add_argument("--protocol", type=int, choices=(1, 2), default=2,
+                        help="2 = game 0.1.95 and later (default), 1 = game 0.1.83 and older")
+    parser.add_argument("--backend", default="CPU", help="backend the game asks for: CPU, CUDA or Vulkan0")
     parser.add_argument("--provider", default=None, help="write this provider into cloud-tts.config.json")
     parser.add_argument("--openai-base-url", default=None, help="override openai.baseUrl (for a local stub)")
     parser.add_argument("--openai-key", default=None, help="override openai.apiKey")
@@ -261,9 +278,11 @@ def main() -> int:
 
     worker = Worker(exe, verbose=not args.quiet_worker)
     try:
-        worker.load(r"C:\models\talker.gguf", r"C:\models\codec.gguf", "CPU")
+        worker.load(args.protocol, args.backend)
         for index in range(1, args.repeat + 1):
-            pcm, first, total = worker.synthesize(args.text, args.lang, reference)
+            # Like the game, protocol 2 sends the clip once and then refers back to it.
+            again = args.protocol == 2 and index > 1
+            pcm, first, total = worker.synthesize(args.text, args.lang, None if again else reference)
             print(f"run {index}: {len(pcm)} samples ({len(pcm) / 24000:.2f}s audio), "
                   f"first audio {first * 1000:.0f} ms, total {total * 1000:.0f} ms")
             if index == 1:

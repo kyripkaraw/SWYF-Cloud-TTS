@@ -276,7 +276,7 @@ namespace SwyfCloudTts.Plugin
                     CloudTtsGame.QwenPreference = int.Parse(evt.newValue, CultureInfo.InvariantCulture);
                 }
             });
-            Help(_card, T("calls.help"));
+            Label help = Help(_card, T("calls.help"));
 
             _gameStatus = Help(_card, "");
 
@@ -287,7 +287,10 @@ namespace SwyfCloudTts.Plugin
             }
             else
             {
+                // Since 0.1.95 a per-language model list in the game's own settings replaces the preference.
                 _callsRow.style.display = DisplayStyle.None;
+                help.text = T("calls.order");
+                Show(help, CloudTtsPlugin.FindType(CloudTtsModelOrder.PreferencesType) != null);
             }
         }
 
@@ -700,7 +703,7 @@ namespace SwyfCloudTts.Plugin
             }
 
             bool supported = CloudTtsGame.HardwareSupported;
-            if (_callsRow != null && CloudTtsGame.QwenPreference >= 0)
+            if (_callsRow != null && CloudTtsGame.CanChangeQwenPreference && CloudTtsGame.QwenPreference >= 0)
             {
                 Show(_callsRow, supported);
                 bool was = _setting;

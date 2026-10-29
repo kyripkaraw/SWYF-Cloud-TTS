@@ -8,13 +8,16 @@ namespace SwyfCloudTts.Plugin
     /// Qwen only through Kolkata.QwenTts.QwenWorkerClient (start, Load, Synthesize), so those are
     /// answered here by <see cref="SpeechEngine"/>. The checks that would stop the game from
     /// using Qwen at all are answered too: the hardware gate (a 5.5 GB GPU), the checksum of the
-    /// worker's runtime files and the 1.3 GB model download, none of which the cloud needs.
-    /// With the provider set to "passthrough" nothing is intercepted and the game's own model runs.
-    /// Members are looked up by name, so a game update that renames one switches that part off
-    /// with a log line instead of keeping the plugin from loading.
+    /// worker's runtime files, the model download (2 GB since 0.1.95) and, since 0.1.95, the
+    /// per-language model order that puts Pocket TTS before Qwen for Russian, none of which the
+    /// cloud needs. With the provider set to "passthrough" nothing is intercepted and the game's
+    /// own model runs. Members are looked up by name, so a game update that renames one switches
+    /// that part off with a log line instead of keeping the plugin from loading.
     internal static class CloudTtsQwenPatches
     {
         private const string ClientType = "Kolkata.QwenTts.QwenWorkerClient";
+
+        private const int HookCount = 7;
 
         private static readonly object Gate = new object();
 
@@ -25,6 +28,9 @@ namespace SwyfCloudTts.Plugin
         private static SpeechEngine _engine;
         private static DateTime _configStamp;
 
+        /// QwenWorkerClient.Backend (0.1.95), which the game logs after Load.
+        private static PropertyInfo _backend;
+
         public static void Apply(Harmony harmony)
         {
             Type client = CloudTtsPlugin.FindType(ClientType);
@@ -34,10 +40,14 @@ namespace SwyfCloudTts.Plugin
                 return;
             }
 
+            // 0.1.95 loads one model file (model, backend); 0.1.83 loaded two (talker, codec, backend).
+            MethodInfo load = AccessTools.Method(client, "Load", new[] { typeof(string), typeof(string) }) ??
+                              AccessTools.Method(client, "Load", new[] { typeof(string), typeof(string), typeof(string) });
+            _backend = AccessTools.Property(client, "Backend");
+
             int applied = 0;
             applied += Patch(harmony, client.GetConstructor(new[] { typeof(string) }), nameof(ConstructorPrefix));
-            applied += Patch(harmony, AccessTools.Method(client, "Load", new[] { typeof(string), typeof(string), typeof(string) }),
-                nameof(LoadPrefix));
+            applied += Patch(harmony, load, nameof(LoadPrefix));
             applied += Patch(harmony, AccessTools.Method(client, "Synthesize",
                     new[] { typeof(string), typeof(string), typeof(float[]), typeof(Action<float[]>), typeof(CancellationToken) }),
                 nameof(SynthesizePrefix));
@@ -47,27 +57,38 @@ namespace SwyfCloudTts.Plugin
                 nameof(ValidatePrefix));
             applied += Patch(harmony, AccessTools.Method(CloudTtsPlugin.FindType("Kolkata.QwenTts.QwenTtsModels"), "VerifyAsync"),
                 nameof(VerifyModelPrefix));
-            PluginLog.Info("Qwen voice redirected to the cloud: " + applied + " of 6 hooks in place.");
+            applied += Patch(harmony, AccessTools.Method(CloudTtsPlugin.FindType(CloudTtsModelOrder.PreferencesType), "PrefersQwen"),
+                nameof(PrefersQwenPostfix), postfix: true);
+            PluginLog.Info("Qwen voice redirected to the cloud: " + applied + " of " + HookCount + " hooks in place.");
 
             RefreshGameState();
         }
 
-        private static int Patch(Harmony harmony, MethodBase target, string prefix)
+        private static int Patch(Harmony harmony, MethodBase target, string hook, bool postfix = false)
         {
             if (target == null)
             {
-                PluginLog.Warning("hook " + prefix + " skipped: the game method was not found.");
+                PluginLog.Warning("hook " + hook + " skipped: the game method was not found.");
                 return 0;
             }
 
             try
             {
-                harmony.Patch(target, prefix: new HarmonyMethod(typeof(CloudTtsQwenPatches), prefix));
+                var method = new HarmonyMethod(typeof(CloudTtsQwenPatches), hook);
+                if (postfix)
+                {
+                    harmony.Patch(target, postfix: method);
+                }
+                else
+                {
+                    harmony.Patch(target, prefix: method);
+                }
+
                 return 1;
             }
             catch (Exception ex)
             {
-                PluginLog.Warning("hook " + prefix + " failed: " + ex.Message);
+                PluginLog.Warning("hook " + hook + " failed: " + ex.Message);
                 return 0;
             }
         }
@@ -163,11 +184,21 @@ namespace SwyfCloudTts.Plugin
             return false;
         }
 
-        private static bool LoadPrefix(object __instance, string talker, string codec, string backend)
+        private static bool LoadPrefix(object __instance, string backend)
         {
             if (!Intercepted.TryGetValue(__instance, out _))
             {
                 return true;
+            }
+
+            try
+            {
+                // The game accepts cuda, vulkan or cpu here; the cloud needs neither GPU.
+                _backend?.SetValue(__instance, "cpu", null);
+            }
+            catch (Exception ex)
+            {
+                Log.Debug("could not set the worker backend: " + ex.Message);
             }
 
             Log.Info($"load: backend={backend} (models not needed, the cloud speaks)");
@@ -199,6 +230,20 @@ namespace SwyfCloudTts.Plugin
         }
 
         private static bool ValidatePrefix() => !CloudSpeaks();
+
+        private static void PrefersQwenPostfix(object language, ref bool __result)
+        {
+            try
+            {
+                SpeechEngine engine = Engine();
+                __result = CloudTtsModelOrder.PrefersQwen(language, __result,
+                    engine.PassthroughOnly ? "passthrough" : engine.ProviderName, null);
+            }
+            catch (Exception ex)
+            {
+                PluginLog.Debug("the voice model order was left to the game: " + ex.Message);
+            }
+        }
 
         private static bool VerifyModelPrefix(ref Task<bool> __result)
         {

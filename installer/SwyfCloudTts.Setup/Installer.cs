@@ -77,8 +77,10 @@ namespace SwyfCloudTts.Setup
             "debug_address = 127.0.0.1:10000\r\n" +
             "debug_suspend = false\r\n";
 
+        /// The worker's entry in runtime-manifest.json. Game 0.1.83 writes "path" first, 0.1.95 "sha256".
         private static readonly Regex WorkerEntry = new Regex(
-            "\"path\"\\s*:\\s*\"" + Regex.Escape(WorkerName) + "\"\\s*,\\s*\"sha256\"\\s*:\\s*\"([0-9a-fA-F]{64})\"");
+            "\"path\"\\s*:\\s*\"" + Regex.Escape(WorkerName) + "\"\\s*,\\s*\"sha256\"\\s*:\\s*\"(?<hash>[0-9a-fA-F]{64})\"" +
+            "|\"sha256\"\\s*:\\s*\"(?<hash>[0-9a-fA-F]{64})\"\\s*,\\s*\"path\"\\s*:\\s*\"" + Regex.Escape(WorkerName) + "\"");
 
         private static readonly Regex OurLoaderTarget = new Regex(
             @"target_assembly\s*=\s*SwyfCloudTts\\", RegexOptions.IgnoreCase);
@@ -547,7 +549,7 @@ namespace SwyfCloudTts.Setup
                 throw new SetupException(Strings.ManifestChanged);
             }
 
-            Group old = match.Groups[1];
+            Group old = match.Groups["hash"];
             string updated = text.Substring(0, old.Index) + hash + text.Substring(old.Index + old.Length);
             File.WriteAllText(manifest, updated, new UTF8Encoding(false));
         }
@@ -557,7 +559,7 @@ namespace SwyfCloudTts.Setup
             try
             {
                 Match match = WorkerEntry.Match(File.ReadAllText(manifest));
-                return match.Success ? match.Groups[1].Value.ToLowerInvariant() : null;
+                return match.Success ? match.Groups["hash"].Value.ToLowerInvariant() : null;
             }
             catch (IOException)
             {

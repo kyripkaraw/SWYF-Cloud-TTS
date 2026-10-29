@@ -44,6 +44,18 @@ namespace SwyfCloudTts.Plugin
                 "Це налаштування самої гри. За замовчуванням англійські дзвінки озвучує вбудований голос гри. Діє з наступного дзвінка.",
                 "Это настройка самой игры. По умолчанию английские звонки озвучивает встроенный голос игры. Действует со следующего звонка.",
             },
+            ["calls.order"] = new[]
+            {
+                "The game picks the voice model for each call language in its own list in Settings → Speech (Pocket TTS, MOSS TTS Nano, Qwen3 TTS). " +
+                "While this mod speaks, Qwen comes first for Russian; for other languages drag Qwen3 TTS to the top of that list. " +
+                "Switching Qwen3 TTS off there keeps the game's own voice for that language.",
+                "Гра обирає модель голосу для кожної мови дзвінка у власному списку в Settings → Speech (Pocket TTS, MOSS TTS Nano, Qwen3 TTS). " +
+                "Поки говорить цей мод, для російської Qwen стоїть першим; для інших мов перетягніть Qwen3 TTS нагору цього списку. " +
+                "Якщо вимкнути там Qwen3 TTS, для цієї мови лишиться власний голос гри.",
+                "Игра выбирает модель голоса для каждого языка звонка в собственном списке в Settings → Speech (Pocket TTS, MOSS TTS Nano, Qwen3 TTS). " +
+                "Пока говорит этот мод, для русского Qwen стоит первым; для других языков перетащите Qwen3 TTS наверх этого списка. " +
+                "Если выключить там Qwen3 TTS, для этого языка останется собственный голос игры.",
+            },
             ["game.noHardware"] = new[]
             {
                 "The game does not use AI voices on this PC (Windows on ARM, or a hardware check the mod could not get past), so cloud voices cannot work here. Details are in plugin.log.",
@@ -52,9 +64,9 @@ namespace SwyfCloudTts.Plugin
             },
             ["game.downloading"] = new[]
             {
-                "The game is still downloading its voice files (about 1.3 GB). Cloud voices start once the download is finished.",
-                "Гра ще завантажує свої голосові файли (близько 1,3 ГБ). Хмарні голоси запрацюють, щойно завантаження завершиться.",
-                "Игра ещё скачивает свои голосовые файлы (около 1,3 ГБ). Облачные голоса заработают, как только загрузка завершится.",
+                "The game is still downloading its voice files (about 2 GB). Cloud voices start once the download is finished.",
+                "Гра ще завантажує свої голосові файли (близько 2 ГБ). Хмарні голоси запрацюють, щойно завантаження завершиться.",
+                "Игра ещё скачивает свои голосовые файлы (около 2 ГБ). Облачные голоса заработают, как только загрузка завершится.",
             },
             ["game.downloadFailed"] = new[]
             {

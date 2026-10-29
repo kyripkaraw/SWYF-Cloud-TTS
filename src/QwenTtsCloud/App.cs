@@ -4,6 +4,11 @@ namespace SwyfCloudTts;
 
 /// Protocol implementation. Mirrors the original worker's validation exactly, then hands the
 /// line to <see cref="SpeechEngine"/> and streams the audio back in the same format.
+///
+/// Two protocol revisions exist. Game 0.1.83 sends Load(talker, codec, backend) and expects
+/// "1, 1" back. Game 0.1.95 (the audio.cpp runtime, manifest "protocol": 2) sends Load(model,
+/// backend), expects "1, 2, backend name" back, and sends a zero-length reference when the
+/// speaker is the same as in the previous line.
 internal sealed class App : IDisposable
 {
     private readonly SpeechEngine _engine;
@@ -11,6 +16,10 @@ internal sealed class App : IDisposable
     private readonly bool _passthroughOnly;
 
     private bool _loaded;
+    private int _protocol = 1;
+
+    /// The last reference the game sent; protocol 2 refers to it with a zero length.
+    private float[]? _reference;
 
     private App(SpeechEngine engine, bool passthroughOnly, PassthroughClient? passthrough)
     {
@@ -69,24 +78,44 @@ internal sealed class App : IDisposable
 
     public void Load(BinaryReader reader, BinaryWriter writer)
     {
-        string talker = reader.ReadString();
-        string codec = reader.ReadString();
-        string backend = reader.ReadString();
+        string model = reader.ReadString();
+        string second = reader.ReadString();
 
-        if (_loaded || (backend != "CPU" && backend != "Vulkan0"))
+        // Protocol 2 sends the backend second; protocol 1 sends the codec path there.
+        bool current = IsBackend(second);
+        string backend = current ? second : reader.ReadString();
+
+        if (_loaded || !IsBackend(backend))
         {
             throw new InvalidDataException("Invalid Qwen load request.");
         }
 
         _loaded = true;
-        _passthrough?.RememberLoad(talker, codec, backend);
+        _protocol = current ? 2 : 1;
 
-        Log.Info($"load: talker={Path.GetFileName(talker)}, codec={Path.GetFileName(codec)}, backend={backend}");
+        if (current)
+        {
+            _passthrough?.RememberLoad(2, model, backend);
+            Log.Info($"load: model={Path.GetFileName(model)}, backend={backend}, protocol 2");
 
-        writer.Write(1);
-        writer.Write(1);
+            // The game accepts cuda, vulkan or cpu; the cloud needs neither GPU.
+            writer.Write(1);
+            writer.Write(2);
+            writer.Write("cpu");
+        }
+        else
+        {
+            _passthrough?.RememberLoad(1, model, second, backend);
+            Log.Info($"load: talker={Path.GetFileName(model)}, codec={Path.GetFileName(second)}, backend={backend}");
+
+            writer.Write(1);
+            writer.Write(1);
+        }
+
         writer.Flush();
     }
+
+    private static bool IsBackend(string value) => value is "CPU" or "CUDA" or "Vulkan0";
 
     public void Synthesize(BinaryReader reader, BinaryWriter writer)
     {
@@ -98,31 +127,21 @@ internal sealed class App : IDisposable
         string text = reader.ReadString();
         string language = reader.ReadString();
 
-        if (text.Length == 0 || text.Length > 2000 || !SupportedLanguage(language))
+        if (text.Length == 0 || text.Length > 2000 || !SupportedLanguage(language) || text.IndexOf('\0') >= 0)
         {
             throw new InvalidDataException("Invalid Qwen speech request.");
         }
 
         int referenceLength = reader.ReadInt32();
-        if (referenceLength < 2400 || referenceLength > 240000)
+        float[] reference;
+        if (referenceLength == 0 && _protocol == 2)
         {
-            throw new InvalidDataException("Invalid Qwen reference length.");
+            reference = _reference ?? throw new InvalidDataException("Missing Qwen voice reference.");
         }
-
-        byte[] raw = reader.ReadBytes(referenceLength * 4);
-        if (raw.Length != referenceLength * 4)
+        else
         {
-            throw new EndOfStreamException();
-        }
-
-        float[] reference = new float[referenceLength];
-        Buffer.BlockCopy(raw, 0, reference, 0, raw.Length);
-        for (int i = 0; i < referenceLength; i++)
-        {
-            if (float.IsNaN(reference[i]) || float.IsInfinity(reference[i]))
-            {
-                throw new InvalidDataException("Invalid reference sample.");
-            }
+            reference = ReadReference(reader, referenceLength);
+            _reference = reference;
         }
 
         try
@@ -148,6 +167,32 @@ internal sealed class App : IDisposable
                 // The game closed the pipe.
             }
         }
+    }
+
+    private static float[] ReadReference(BinaryReader reader, int length)
+    {
+        if (length < 2400 || length > 240000)
+        {
+            throw new InvalidDataException("Invalid Qwen reference length.");
+        }
+
+        byte[] raw = reader.ReadBytes(length * 4);
+        if (raw.Length != length * 4)
+        {
+            throw new EndOfStreamException();
+        }
+
+        float[] reference = new float[length];
+        Buffer.BlockCopy(raw, 0, reference, 0, raw.Length);
+        for (int i = 0; i < length; i++)
+        {
+            if (float.IsNaN(reference[i]) || float.IsInfinity(reference[i]))
+            {
+                throw new InvalidDataException("Invalid reference sample.");
+            }
+        }
+
+        return reference;
     }
 
     private void Respond(BinaryWriter writer, string text, string language, float[] reference)

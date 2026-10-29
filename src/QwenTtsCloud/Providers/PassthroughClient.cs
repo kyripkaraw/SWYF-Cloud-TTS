@@ -13,9 +13,9 @@ internal sealed class PassthroughClient : IDisposable
     private BinaryReader? _input;
     private BinaryWriter? _output;
 
-    private string _talker = "";
-    private string _codec = "";
-    private string _backend = "CPU";
+    /// The game's Load request as sent: talker, codec, backend (protocol 1) or model, backend (2).
+    private string[] _load = Array.Empty<string>();
+    private int _protocol = 1;
     private bool _loadRequested;
 
     public PassthroughClient(Config config)
@@ -25,11 +25,10 @@ internal sealed class PassthroughClient : IDisposable
 
     public bool Available => File.Exists(_executable);
 
-    public void RememberLoad(string talker, string codec, string backend)
+    public void RememberLoad(int protocol, params string[] fields)
     {
-        _talker = talker;
-        _codec = codec;
-        _backend = backend;
+        _protocol = protocol;
+        _load = fields;
     }
 
     /// Returns true when the whole reply (chunks plus terminator) was already written
@@ -147,9 +146,11 @@ internal sealed class PassthroughClient : IDisposable
     {
         Log.Info("passthrough load: waiting for the local model (this can take a while)");
         _output!.Write(1);
-        _output.Write(_talker);
-        _output.Write(_codec);
-        _output.Write(_backend);
+        foreach (string field in _load)
+        {
+            _output.Write(field);
+        }
+
         _output.Flush();
 
         int code = _input!.ReadInt32();
@@ -158,13 +159,15 @@ internal sealed class PassthroughClient : IDisposable
             throw new IOException("original worker load failed: " + _input.ReadString());
         }
 
-        if (code != 1 || _input.ReadInt32() != 1)
+        if (code != 1 || _input.ReadInt32() != _protocol)
         {
             throw new InvalidDataException("original worker rejected the load request");
         }
 
+        // Protocol 2 names the backend the local model ended up on.
+        string backend = _protocol == 2 ? _input.ReadString() : "";
         _loadRequested = true;
-        Log.Info("passthrough ready");
+        Log.Info("passthrough ready" + (backend.Length > 0 ? $" (backend {backend})" : ""));
     }
 
     public void Dispose()
