@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.5.0] - 2026-10-29
+
+### Fixed
+- Game 0.1.95 support ([docs/compat-0.1.95.md](docs/compat-0.1.95.md)):
+  - the worker speaks the game's new worker protocol 2 (one model file, a backend name in the
+    Load reply, and a zero-length voice clip for "the same speaker as the last line"); the old
+    protocol still works;
+  - the setup found no worker entry in the new `runtime-manifest.json` (the keys swapped places);
+  - the BepInEx plugin missed the new `QwenWorkerClient.Load(model, backend)` (5 of 6 hooks);
+  - Russian calls never reached the mod, because the game now puts its built-in Pocket TTS before
+    Qwen for Russian. While the mod speaks, Qwen comes first for Russian unless the player switched
+    Qwen off in the game's own model list; both builds do this in memory, the saved order is kept;
+  - the card's "Cloud voices for" row, which the game no longer lets mods change, is replaced by a
+    hint about the game's model list.
+- The in-game card looks like the game's own settings again on 0.1.95: dropdowns get the game's
+  brown surface instead of Unity's grey box, text uses the game's font for its language (Latin words
+  no longer switch to the display font), long buttons such as "Load my voices" are no longer cut off,
+  long labels wrap instead of being cut, and the key field and fallbacks use the game's colours.
+
 ## [1.4.0] - 2026-10-26
 
 ### Added
