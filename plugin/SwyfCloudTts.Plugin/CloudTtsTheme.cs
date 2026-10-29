@@ -12,18 +12,21 @@ namespace SwyfCloudTts.Plugin
     /// when such a control cannot be found does the card fall back to its own colours.
     internal static class CloudTtsTheme
     {
-        internal static readonly Color InfoColor = new Color(0.78f, 0.80f, 0.86f);
+        // Colours taken from the game's settings style sheet, so fallbacks blend in with it.
+        internal static readonly Color InfoColor = new Color32(232, 210, 172, 255);
         internal static readonly Color OkColor = new Color(0.55f, 0.86f, 0.58f);
         internal static readonly Color ErrorColor = new Color(1f, 0.47f, 0.47f);
         internal static readonly Color WarningColor = new Color(1f, 0.77f, 0.42f);
 
-        private static readonly Color InputBg = new Color(0.09f, 0.10f, 0.13f, 1f);
-        private static readonly Color InputBorder = new Color(1f, 1f, 1f, 0.16f);
-        private static readonly Color FieldTextColor = new Color(0.93f, 0.94f, 0.97f);
-        private static readonly Color MutedTextColor = new Color(0.65f, 0.68f, 0.75f);
-        private static readonly Color ButtonBg = new Color(0.17f, 0.19f, 0.24f, 1f);
-        private static readonly Color AccentColor = new Color(0.36f, 0.60f, 1f, 1f);
-        private static readonly Color TrackColor = new Color(1f, 1f, 1f, 0.12f);
+        private static readonly Color InputBg = new Color32(31, 19, 17, 255);
+        private static readonly Color InputBorder = new Color32(147, 97, 48, 255);
+        private static readonly Color FieldTextColor = new Color32(255, 225, 171, 255);
+        private static readonly Color MutedTextColor = new Color32(204, 177, 139, 255);
+        private static readonly Color ButtonBg = new Color32(47, 33, 27, 250);
+        private static readonly Color ButtonBorder = new Color32(173, 129, 71, 255);
+        private static readonly Color AccentColor = new Color32(222, 156, 47, 255);
+        private static readonly Color TrackColor = new Color32(87, 68, 57, 255);
+        private static readonly Color MenuBg = new Color32(31, 19, 17, 252);
 
         private static string[] _dropdown;
         private static string[] _slider;
@@ -63,17 +66,17 @@ namespace SwyfCloudTts.Plugin
                            " reset=" + Describe(_resetButton));
         }
 
-        /// The game's default font has no Cyrillic; it switches fonts only for its own Russian.
-        /// A Ukrainian or Russian card over an English game borrows that font.
+        /// The game puts its language's font on every text it localizes, but the card opts out of
+        /// that localization, so without this its Latin text would fall back to the game's
+        /// default display font. The default font has no Cyrillic either, so a Ukrainian or
+        /// Russian card over an English game borrows the Russian font.
         public static void UseFontFor(string cardLanguage)
         {
-            _font = null;
-            if (cardLanguage != "uk" && cardLanguage != "ru")
-            {
-                return;
-            }
+            string game = CloudTtsGame.LanguageCode;
 
-            if (CloudTtsGame.UiFont(CloudTtsGame.LanguageCode) == null)
+            // Like the game, keep the default font for Arabic and Farsi; the card is never in those.
+            _font = game != "ar" && game != "fa" ? CloudTtsGame.UiFont(game) : null;
+            if (_font == null && (cardLanguage == "uk" || cardLanguage == "ru"))
             {
                 _font = CloudTtsGame.UiFont("ru");
             }
@@ -105,6 +108,11 @@ namespace SwyfCloudTts.Plugin
 
             if (Adopt(field, _dropdown))
             {
+                if (field.ClassListContains("menu-dropdown"))
+                {
+                    AddSurface(field);
+                }
+
                 HookPopupFont(field);
                 return;
             }
@@ -141,6 +149,9 @@ namespace SwyfCloudTts.Plugin
             {
                 return;
             }
+
+            // Same height as the dropdowns beside it.
+            field.style.height = 38f;
 
             foreach (VisualElement element in field.Query<VisualElement>().ToList())
             {
@@ -214,20 +225,34 @@ namespace SwyfCloudTts.Plugin
             }
 
             string[] native = kind == ButtonKind.Primary ? _primaryButton : kind == ButtonKind.Small ? _resetButton : _button;
-            button.AddToClassList(kind == ButtonKind.Primary ? "reset-save-button" : "reset-button");
-            if (Adopt(button, native ?? _button))
+            button.AddToClassList("reset-button");
+            bool primary = kind == ButtonKind.Primary;
+            if (kind != ButtonKind.Small)
             {
+                // The game's reset button is a fixed 91px; ours carry longer captions.
+                button.style.width = StyleKeyword.Auto;
+                button.style.minWidth = 91f;
+                button.style.paddingLeft = 16f;
+                button.style.paddingRight = 16f;
+            }
+
+            if (Adopt(button, native ?? _resetButton))
+            {
+                if (primary)
+                {
+                    // Only the border, so the game's hover colours still apply.
+                    SetBorder(button, AccentColor, 2f);
+                }
+
                 return;
             }
 
-            bool primary = kind == ButtonKind.Primary;
             button.style.backgroundColor = primary ? AccentColor : ButtonBg;
             button.style.backgroundImage = new StyleBackground(StyleKeyword.None);
-            button.style.color = primary ? Color.white : FieldTextColor;
-            SetBorder(button, primary ? new Color(1f, 1f, 1f, 0f) : InputBorder);
-            SetRadius(button, 4f);
-            button.style.paddingLeft = 14f;
-            button.style.paddingRight = 14f;
+            button.style.color = primary ? (Color)new Color32(34, 21, 17, 255) : FieldTextColor;
+            SetBorder(button, primary ? AccentColor : ButtonBorder, 2f);
+            SetRadius(button, 6f);
+            button.style.height = 36f;
         }
 
         /// Help lines use the game's class; without it they would inherit the label colour.
@@ -308,9 +333,31 @@ namespace SwyfCloudTts.Plugin
             box.style.backgroundColor = InputBg;
             box.style.backgroundImage = new StyleBackground(StyleKeyword.None);
             SetBorder(box, InputBorder);
-            SetRadius(box, 4f);
-            box.style.paddingLeft = 6f;
-            box.style.paddingRight = 6f;
+            SetRadius(box, 6f);
+            box.style.paddingLeft = 10f;
+            box.style.paddingRight = 10f;
+        }
+
+        /// The game's dropdown look is drawn by a surface it wraps around the field's contents
+        /// (MainMenuToolkitController.ConfigureDropdownHover); without it the field keeps
+        /// Unity's grey box. This repeats that wrapping for the card's dropdowns.
+        private static void AddSurface(DropdownField field)
+        {
+            VisualElement input = field.Q(null, "unity-base-popup-field__input");
+            if (input == null || input.ClassListContains("menu-dropdown-anchor"))
+            {
+                return;
+            }
+
+            var surface = new VisualElement { pickingMode = PickingMode.Ignore };
+            surface.AddToClassList("menu-dropdown-surface");
+            foreach (VisualElement child in new List<VisualElement>(input.Children()))
+            {
+                surface.Add(child);
+            }
+
+            input.Add(surface);
+            input.AddToClassList("menu-dropdown-anchor");
         }
 
         /// The dropdown list opens in a popup outside the card, so it is styled when it opens.
@@ -325,7 +372,7 @@ namespace SwyfCloudTts.Plugin
                         if (element.ClassListContains("unity-dropdown-menu__background") ||
                             element.ClassListContains("unity-dropdown-menu__container"))
                         {
-                            element.style.backgroundColor = new Color(0.10f, 0.11f, 0.14f, 0.99f);
+                            element.style.backgroundColor = MenuBg;
                             element.style.backgroundImage = new StyleBackground(StyleKeyword.None);
                         }
 
@@ -371,12 +418,12 @@ namespace SwyfCloudTts.Plugin
             }
         }
 
-        private static void SetBorder(VisualElement element, Color color)
+        private static void SetBorder(VisualElement element, Color color, float width = 1f)
         {
-            element.style.borderTopWidth = 1f;
-            element.style.borderBottomWidth = 1f;
-            element.style.borderLeftWidth = 1f;
-            element.style.borderRightWidth = 1f;
+            element.style.borderTopWidth = width;
+            element.style.borderBottomWidth = width;
+            element.style.borderLeftWidth = width;
+            element.style.borderRightWidth = width;
             element.style.borderTopColor = color;
             element.style.borderBottomColor = color;
             element.style.borderLeftColor = color;

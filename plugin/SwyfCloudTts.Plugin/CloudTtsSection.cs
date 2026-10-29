@@ -322,6 +322,10 @@ namespace SwyfCloudTts.Plugin
 
             _keyState = new Label();
             _keyState.style.whiteSpace = WhiteSpace.Normal;
+
+            // A line of its own under the field, rather than a narrow column beside the button.
+            _keyState.style.width = Length.Percent(100);
+            _keyState.style.marginTop = 4;
             _keyState.style.marginLeft = 4;
             control.Add(_keyState);
 
@@ -1161,6 +1165,10 @@ namespace SwyfCloudTts.Plugin
             label.AddToClassList("setting-label");
             label.style.minWidth = 200;
             label.style.flexShrink = 0;
+
+            // The game cuts long labels off; ours wrap onto a second line instead.
+            label.style.whiteSpace = WhiteSpace.Normal;
+            label.style.paddingRight = 10;
             row.Add(label);
 
             var control = new VisualElement();
